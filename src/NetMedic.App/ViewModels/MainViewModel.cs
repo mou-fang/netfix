@@ -8,6 +8,7 @@ using NetMedic.App.Windows.Probes;
 using NetMedic.Core.Diagnostics;
 using NetMedic.Core.Diagnostics.Rules;
 using NetMedic.Core.Repairs;
+using NetMedic.Core.Testing.Fakes;
 
 namespace NetMedic.App;
 
@@ -21,6 +22,7 @@ public enum AppPage
     Result,
     RepairConfirm,
     RepairResult,
+    MockRepair,
 }
 
 /// <summary>
@@ -52,6 +54,9 @@ public sealed partial class MainViewModel : ObservableObject
         this.hasGuidance = false;
         this.canRepairPrimaryFinding = false;
         this.isGuidanceVisible = false;
+        this.mockRepairStatus = string.Empty;
+        this.mockRepairDetail = string.Empty;
+        this.isMockRepairRunning = false;
     }
 
     [ObservableProperty]
@@ -114,6 +119,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>处理方法面板是否展开。</summary>
     [ObservableProperty]
     private bool isGuidanceVisible;
+
+    /// <summary>模拟修复状态文案（显示当前事务阶段）。</summary>
+    [ObservableProperty]
+    private string mockRepairStatus;
+
+    /// <summary>模拟修复详情文案（显示结果或进度说明）。</summary>
+    [ObservableProperty]
+    private string mockRepairDetail;
+
+    /// <summary>模拟修复是否正在运行（控制按钮可用性和进度条）。</summary>
+    [ObservableProperty]
+    private bool isMockRepairRunning;
 
     public ObservableCollection<Finding> allFindings { get; } = [];
 
@@ -321,6 +338,108 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleTechnicalDetails()
     {
         this.IsTechnicalDetailsVisible = !this.IsTechnicalDetailsVisible;
+    }
+
+    /// <summary>
+    /// 导航到模拟修复页面（DryRun 演示，不修改系统）。
+    /// 清空上次状态，显示"开始模拟修复"按钮。
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToMockRepair()
+    {
+        this.MockRepairStatus = Strings.MockRepair_Title;
+        this.MockRepairDetail = Strings.MockRepair_NoSystemModification;
+        this.IsMockRepairRunning = false;
+        this.CurrentPage = AppPage.MockRepair;
+    }
+
+    /// <summary>
+    /// 执行模拟修复（DryRun 模式）。
+    /// 使用 FakeSuccessfulRepairAction 走完整事务流程：
+    /// create -> plan -> confirm -> snapshot -> execute -> verify -> 显示结果。
+    /// 不修改系统，不调用 Process.Start，不需要提权。
+    /// 结果文案明确标注"模拟"和"未对系统进行修改"。
+    /// </summary>
+    [RelayCommand]
+    private async Task MockRepairAsync()
+    {
+        this.IsMockRepairRunning = true;
+        this.MockRepairStatus = Strings.MockRepair_PlanPreview;
+        this.MockRepairDetail = string.Empty;
+
+        try
+        {
+            // 构建测试目录（仅含 Fake 动作，不使用生产目录）
+            var catalog = new RepairActionCatalog();
+            catalog.Register(new FakeSuccessfulRepairAction());
+
+            var engine = new RepairTransactionEngine(catalog);
+            var context = RepairContext.ForDryRun(
+                sessionId: "mock-session",
+                correlationId: "mock-correlation",
+                isElevated: false,
+                userConfirmed: false);
+
+            // 1. 创建事务
+            engine.CreateTransaction("FAKE-SUCCESS", context);
+
+            // 2. 生成计划
+            this.MockRepairStatus = Strings.MockRepair_PlanPreview;
+            await engine.PlanAsync(CancellationToken.None);
+
+            // 3. 确认
+            engine.Confirm();
+
+            // 4. 捕获快照
+            this.MockRepairStatus = Strings.MockRepair_CapturingSnapshot;
+            await engine.CaptureSnapshotAsync(CancellationToken.None);
+
+            // 5. 执行
+            this.MockRepairStatus = Strings.MockRepair_Executing;
+            await engine.ExecuteAsync(CancellationToken.None);
+
+            // 6. 验证
+            this.MockRepairStatus = Strings.MockRepair_Verifying;
+            var tx = await engine.VerifyAsync(CancellationToken.None);
+
+            // 7. 显示结果
+            if (tx.State == RepairTransactionState.Succeeded)
+            {
+                this.MockRepairStatus = Strings.MockRepair_Success;
+                this.MockRepairDetail = Strings.MockRepair_SuccessDetail;
+            }
+            else if (tx.State == RepairTransactionState.RolledBack)
+            {
+                this.MockRepairStatus = Strings.MockRepair_RollbackSuccess;
+            }
+            else if (tx.State == RepairTransactionState.Failed)
+            {
+                this.MockRepairStatus = Strings.MockRepair_ExecutionFailed;
+            }
+            else
+            {
+                this.MockRepairStatus = Strings.MockRepair_ExecutionFailed;
+            }
+        }
+        catch (Exception)
+        {
+            this.MockRepairStatus = Strings.MockRepair_ExecutionFailed;
+            this.MockRepairDetail = Strings.MockRepair_NoSystemModification;
+        }
+        finally
+        {
+            this.IsMockRepairRunning = false;
+        }
+    }
+
+    /// <summary>从模拟修复页返回首页。</summary>
+    [RelayCommand]
+    private void MockRepairGoHome()
+    {
+        this.CurrentPage = AppPage.Home;
+        this.MockRepairStatus = string.Empty;
+        this.MockRepairDetail = string.Empty;
+        this.IsMockRepairRunning = false;
     }
 
     /// <summary>获取 Finding 的标题文案。</summary>

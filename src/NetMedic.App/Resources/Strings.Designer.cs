@@ -586,5 +586,149 @@ namespace NetMedic.App.Resources {
         public static string GetString(string key) {
             return ResourceManager.GetString(key, resourceCulture) ?? key;
         }
+
+        /// <summary>
+        ///   查找类似 模拟修复 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_Title {
+            get {
+                return ResourceManager.GetString("MockRepair_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 不会修改系统 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_NoSystemModification {
+            get {
+                return ResourceManager.GetString("MockRepair_NoSystemModification", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 修复计划预览 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_PlanPreview {
+            get {
+                return ResourceManager.GetString("MockRepair_PlanPreview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 正在捕获模拟快照 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_CapturingSnapshot {
+            get {
+                return ResourceManager.GetString("MockRepair_CapturingSnapshot", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟执行中 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_Executing {
+            get {
+                return ResourceManager.GetString("MockRepair_Executing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟复检中 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_Verifying {
+            get {
+                return ResourceManager.GetString("MockRepair_Verifying", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟回滚中 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_RollingBack {
+            get {
+                return ResourceManager.GetString("MockRepair_RollingBack", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟事务已完成 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_Success {
+            get {
+                return ResourceManager.GetString("MockRepair_Success", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 未对系统进行修改 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_SuccessDetail {
+            get {
+                return ResourceManager.GetString("MockRepair_SuccessDetail", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟执行失败 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_ExecutionFailed {
+            get {
+                return ResourceManager.GetString("MockRepair_ExecutionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟执行失败，模拟回滚完成 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_RollbackSuccess {
+            get {
+                return ResourceManager.GetString("MockRepair_RollbackSuccess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 模拟回滚失败 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_RollbackFailed {
+            get {
+                return ResourceManager.GetString("MockRepair_RollbackFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 已取消 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_Cancelled {
+            get {
+                return ResourceManager.GetString("MockRepair_Cancelled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 权限不足 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_PrivilegeInsufficient {
+            get {
+                return ResourceManager.GetString("MockRepair_PrivilegeInsufficient", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 真实执行未启用 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_RealNotEnabled {
+            get {
+                return ResourceManager.GetString("MockRepair_RealNotEnabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 开始模拟修复 的本地化字符串。
+        /// </summary>
+        public static string MockRepair_StartMock {
+            get {
+                return ResourceManager.GetString("MockRepair_StartMock", resourceCulture);
+            }
+        }
     }
 }

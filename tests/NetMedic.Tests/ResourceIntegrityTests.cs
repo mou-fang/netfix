@@ -79,6 +79,52 @@ public class ResourceIntegrityTests
         Assert.Null(result);
     }
 
+    /// <summary>
+    /// 阶段 4.0 模拟修复资源完整性测试：
+    /// 所有 MockRepair_* 资源必须存在且非空。
+    /// </summary>
+    [Theory]
+    [InlineData("MockRepair_Title")]
+    [InlineData("MockRepair_NoSystemModification")]
+    [InlineData("MockRepair_PlanPreview")]
+    [InlineData("MockRepair_CapturingSnapshot")]
+    [InlineData("MockRepair_Executing")]
+    [InlineData("MockRepair_Verifying")]
+    [InlineData("MockRepair_RollingBack")]
+    [InlineData("MockRepair_Success")]
+    [InlineData("MockRepair_SuccessDetail")]
+    [InlineData("MockRepair_ExecutionFailed")]
+    [InlineData("MockRepair_RollbackSuccess")]
+    [InlineData("MockRepair_RollbackFailed")]
+    [InlineData("MockRepair_Cancelled")]
+    [InlineData("MockRepair_PrivilegeInsufficient")]
+    [InlineData("MockRepair_RealNotEnabled")]
+    [InlineData("MockRepair_StartMock")]
+    public void MockRepairResources_AllExistAndNonEmpty(string resourceKey)
+    {
+        var rm = Strings.ResourceManager;
+        AssertResourceExists(rm, resourceKey);
+    }
+
+    /// <summary>
+    /// 模拟成功文案必须包含"模拟"字样，且不得包含"修复成功"或"网络已修复"。
+    /// </summary>
+    [Fact]
+    public void MockRepair_SuccessText_ContainsSimulationLabel()
+    {
+        var rm = Strings.ResourceManager;
+        var success = rm.GetString("MockRepair_Success");
+        Assert.False(string.IsNullOrEmpty(success));
+        Assert.Contains("模拟", success);
+        Assert.DoesNotContain("修复成功", success);
+        Assert.DoesNotContain("网络已修复", success);
+
+        var detail = rm.GetString("MockRepair_SuccessDetail");
+        Assert.False(string.IsNullOrEmpty(detail));
+        Assert.DoesNotContain("修复成功", detail);
+        Assert.DoesNotContain("网络已修复", detail);
+    }
+
     private static void AssertResourceExists(ResourceManager rm, string key)
     {
         var value = rm.GetString(key);

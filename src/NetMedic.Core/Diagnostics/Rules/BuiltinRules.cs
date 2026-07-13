@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using NetMedic.Core.Diagnostics;
+using NetMedic.Core.Repairs;
 
 namespace NetMedic.Core.Diagnostics.Rules;
 
@@ -543,12 +544,19 @@ public sealed class InconclusiveRule : IDiagnosisRule
 public static class BuiltinRuleRegistry
 {
     /// <summary>
+    /// 生产修复动作目录。阶段 4.0：无真实 IRepairAction 实现，目录为空。
+    /// 阶段 4.1 起由各动作实现注册成功后加入此目录。
+    /// </summary>
+    public static RepairActionCatalog ProductionRepairCatalog { get; } = new();
+
+    /// <summary>
     /// 当前真正存在实现、可以执行的修复动作注册表。
     /// 阶段 3.3：无真实 IRepairAction 实现，此集合为空。
-    /// 阶段 4 每完成一个真实动作的事务、快照、复检和安全测试后，
+    /// 阶段 4.0：委托给 <see cref="ProductionRepairCatalog"/>，生产目录仍为空。
+    /// 阶段 4.1 每完成一个真实动作的事务、快照、复检和安全测试后，
     /// 由动作实现注册成功后才加入此集合，不能提前批量开启。
     /// </summary>
-    public static IReadOnlySet<string> ExecutableRepairActions { get; } = new HashSet<string>();
+    public static IReadOnlySet<string> ExecutableRepairActions => ProductionRepairCatalog.ExecutableActionIds;
 
     public static RuleRegistry CreateDefault()
     {

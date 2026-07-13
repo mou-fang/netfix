@@ -161,4 +161,22 @@
 
   <!-- 阶段0占位 -->
   <data name="Placeholder_NotImplemented" xml:space="preserve"><value>功能将在后续阶段实现。</value></data>
+
+  <!-- 阶段 4.0 模拟修复（DryRun，不修改系统） -->
+  <data name="MockRepair_Title" xml:space="preserve"><value>模拟修复</value></data>
+  <data name="MockRepair_NoSystemModification" xml:space="preserve"><value>不会修改系统</value></data>
+  <data name="MockRepair_PlanPreview" xml:space="preserve"><value>修复计划预览</value></data>
+  <data name="MockRepair_CapturingSnapshot" xml:space="preserve"><value>正在捕获模拟快照</value></data>
+  <data name="MockRepair_Executing" xml:space="preserve"><value>模拟执行中</value></data>
+  <data name="MockRepair_Verifying" xml:space="preserve"><value>模拟复检中</value></data>
+  <data name="MockRepair_RollingBack" xml:space="preserve"><value>模拟回滚中</value></data>
+  <data name="MockRepair_Success" xml:space="preserve"><value>模拟事务已完成</value></data>
+  <data name="MockRepair_SuccessDetail" xml:space="preserve"><value>未对系统进行修改</value></data>
+  <data name="MockRepair_ExecutionFailed" xml:space="preserve"><value>模拟执行失败</value></data>
+  <data name="MockRepair_RollbackSuccess" xml:space="preserve"><value>模拟执行失败，模拟回滚完成</value></data>
+  <data name="MockRepair_RollbackFailed" xml:space="preserve"><value>模拟回滚失败</value></data>
+  <data name="MockRepair_Cancelled" xml:space="preserve"><value>已取消</value></data>
+  <data name="MockRepair_PrivilegeInsufficient" xml:space="preserve"><value>权限不足</value></data>
+  <data name="MockRepair_RealNotEnabled" xml:space="preserve"><value>真实执行未启用</value></data>
+  <data name="MockRepair_StartMock" xml:space="preserve"><value>开始模拟修复</value></data>
 </root>
