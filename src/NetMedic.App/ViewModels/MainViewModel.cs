@@ -3,6 +3,8 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NetMedic.App.Resources;
+using NetMedic.App.Windows;
+using NetMedic.App.Windows.Probes;
 using NetMedic.Core.Diagnostics;
 using NetMedic.Core.Repairs;
 using NetMedic.Core.Testing;
@@ -94,6 +96,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private SymptomOption? selectedSymptomOption = SymptomOptions[^1];
 
+    /// <summary>用户输入的目标网站（可选）。对应任务书 §4.2 网址输入框。</summary>
+    [ObservableProperty]
+    private string targetSiteInput = string.Empty;
+
     partial void OnSelectedSymptomOptionChanged(SymptomOption? value)
     {
         if (value is not null)
@@ -104,7 +110,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     // --- 命令 ---
 
-    /// <summary>开始体检。切换到 Checking 页，运行 Fake 诊断。</summary>
+    /// <summary>开始体检。切换到 Checking 页，运行真实 Windows 只读探针。</summary>
     [RelayCommand]
     private async Task StartCheckupAsync()
     {
@@ -116,10 +122,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            // 阶段 1：使用 Fake 环境（L02 场景，演示失效代理检测）
-            // 实际场景中应根据用户症状选择环境；此处固定用 L02 演示假流程
-            var env = ScenarioFixtures.L02_DeadLocalProxy().Environment;
-            var probes = FakeProbeSet.BuildQuick(env);
+            // 阶段 2：使用真实 Windows 只读探针
+            var env = new WindowsNetworkEnvironment();
+            var targetHost = !string.IsNullOrWhiteSpace(this.TargetSiteInput) ? this.TargetSiteInput : null;
+            var probes = WindowsProbeSet.BuildQuick(targetHost);
             var orchestrator = new ProbeOrchestrator(probes);
 
             // 更新进度

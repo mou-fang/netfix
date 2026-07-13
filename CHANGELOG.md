@@ -2,6 +2,31 @@
 
 本项目所有用户可见变化记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.3.0] - 2026-07-13
+
+### 阶段 2：快速只读体检
+
+#### 新增
+- Core 数据模型重构：`FakeNetworkEnvironment` 改用分组对象（`SystemState`/`AdapterState`/`DnsState`/`ProxyState`/`WebState`），停止无限增加布尔字段（ADR-012）。
+- Core 安全工具：`UrlNormalizer`（URL 安全规范化，拒绝凭据/换行/命令字符/异常长度）、`HealthTargetCatalog`（两个独立健康目标）。
+- Windows 真实只读探针（14 个）：SYS-01、NET-01~03、DNS-01~02、PRX-01~04（WinINET/WinHTTP/PAC/本地端口分别记录）、WEB-01~04（NCSI/直连HTTPS/系统代理HTTPS/认证门户）、TARGET-01（URL 安全+DNS/TCP/TLS）。
+- `WindowsProbeSet` 构建器、`WindowsNetworkEnvironment` 实现。
+- `--verify-probes` 命令行验证模式。
+- 8 项 Windows 真实探针验证测试 + 20 项 URL 规范化测试。
+- UI 增加目标网站输入框。
+
+#### 变更
+- 测试项目改为 `net10.0-windows` 以引用 Windows 探针。
+- `MainViewModel.StartCheckupAsync` 改用真实 Windows 探针替换 Fake。
+
+#### 安全
+- 所有探针只读、非管理员可运行、有独立超时和取消支持。
+- NCSI、Ping、单一健康地址均不单独决定"是否断网"。
+- WinINET、WinHTTP、PAC 和本地代理端口分别记录。
+- TARGET-01 只允许 HTTP/HTTPS，安全规范化用户输入。
+- 不上传诊断信息，不添加设备标识。
+- 无真实修复、无管理员动作、无系统设置修改。
+
 ## [0.2.0] - 2026-07-13
 
 ### 阶段 1：模型、模拟器与完整 UI 假流程

@@ -59,10 +59,15 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+            <TextBlock Text="打不开的网站地址（可选）" FontSize="11" Opacity="0.5"
+                       HorizontalAlignment="Center" Margin="0,4,0,2" />
+            <TextBox Text="{Binding TargetSiteInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Margin="0,0,0,8" Padding="8,6" FontSize="13"
+                     HorizontalAlignment="Center" MinWidth="300" />
             <Button Content="{x:Static res:Strings.Home_StartCheckup}"
                     Command="{Binding StartCheckupCommand}"
                     Padding="28,12" FontSize="15" MinWidth="200"
-                    HorizontalAlignment="Center" />
+                    HorizontalAlignment="Center" Margin="0,8,0,0" />
         </StackPanel>
 
         <!-- 体检中 -->

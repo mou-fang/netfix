@@ -27,12 +27,14 @@ public static class ScenarioFixtures
         Name: "L02_DeadLocalProxy",
         Environment: FakeNetworkEnvironment.Healthy("L02_DeadLocalProxy") with
         {
-            WininetProxyEnabled = true,
-            WininetProxyAddress = "127.0.0.1:7890",
-            WininetProxyIsLoopback = true,
-            WininetProxyPortListening = false,
-            // 系统代理路径会失败，但直连成功
-            SystemProxyHttpsOk = false,
+            Proxy = ProxyState.Direct with
+            {
+                WininetEnabled = true,
+                WininetAddress = "127.0.0.1:7890",
+                WininetIsLoopback = true,
+                WininetPortListening = false,
+            },
+            Web = WebState.Healthy with { SystemProxyHttpsOk = false },
         },
         ExpectedFindingId: "finding.dead_local_proxy",
         ExpectedConfidence: Confidence.High,
@@ -46,13 +48,17 @@ public static class ScenarioFixtures
         Name: "L09_DnsFailure",
         Environment: FakeNetworkEnvironment.Healthy("L09_DnsFailure") with
         {
-            SystemDnsResolves = false,
-            ConfiguredDnsReachable = false,
-            // 直连 HTTPS 也会失败（因为无法解析域名），
-            // 但网关/路由正常，足以区分 DNS 故障与完全断网
-            DirectHttpsOk = false,
-            TargetSiteResolves = false,
-            TargetSiteConnects = false,
+            Dns = DnsState.Healthy with
+            {
+                SystemResolves = false,
+                ConfiguredDnsReachable = false,
+            },
+            Web = WebState.Healthy with
+            {
+                DirectHttpsOk = false,
+                TargetSiteResolves = false,
+                TargetSiteConnects = false,
+            },
         },
         ExpectedFindingId: "finding.dns_failure",
         ExpectedConfidence: Confidence.High,
@@ -65,10 +71,7 @@ public static class ScenarioFixtures
         Name: "L14_NcsiMismatch",
         Environment: FakeNetworkEnvironment.Healthy("L14_NcsiMismatch") with
         {
-            NcsiConnected = false,
-            // 直连和系统代理都正常
-            DirectHttpsOk = true,
-            SystemProxyHttpsOk = true,
+            Web = WebState.Healthy with { NcsiConnected = false },
         },
         ExpectedFindingId: "finding.ncsi_mismatch",
         ExpectedConfidence: Confidence.High,
@@ -82,8 +85,11 @@ public static class ScenarioFixtures
         Name: "L15_SingleSiteIssue",
         Environment: FakeNetworkEnvironment.Healthy("L15_SingleSiteIssue") with
         {
-            TargetSiteResolves = false,
-            TargetSiteConnects = false,
+            Web = WebState.Healthy with
+            {
+                TargetSiteResolves = false,
+                TargetSiteConnects = false,
+            },
         },
         ExpectedFindingId: "finding.single_site_issue",
         ExpectedConfidence: Confidence.High,
