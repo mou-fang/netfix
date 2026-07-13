@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NetMedic.App/NetMedic.App.csproj" />
+    <Project Path="src/NetMedic.Core/NetMedic.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NetMedic.Tests/NetMedic.Tests.csproj" />
+  </Folder>
+</Solution>

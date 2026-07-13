@@ -1,0 +1,79 @@
+<Window x:Class="NetMedic.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:NetMedic.App"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="网络急救箱"
+        Height="420" Width="560"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 应用名称 -->
+        <TextBlock Grid.Row="0"
+                   Text="{Binding AppName}"
+                   FontSize="28" FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   Margin="0,16,0,4" />
+
+        <!-- 版本 -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding AppVersion}"
+                   FontSize="13" Opacity="0.6"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,16" />
+
+        <!-- 就绪状态 -->
+        <Border Grid.Row="2"
+                HorizontalAlignment="Center"
+                Padding="14,6"
+                CornerRadius="12"
+                Background="#E6F4EA"
+                BorderBrush="#34A853" BorderThickness="1">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="8" Height="8" Fill="#34A853" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ReadyState}"
+                           FontSize="13" FontWeight="Medium"
+                           Foreground="#1B5E20"
+                           Margin="8,0,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- 占位区域 -->
+        <TextBlock Grid.Row="3"
+                   Text="阶段 0 工程骨架就绪。诊断功能将在后续阶段实现。"
+                   FontSize="12" Opacity="0.55"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"
+                   Margin="0,24,0,0" />
+
+        <!-- 开始体检按钮 + 状态消息 -->
+        <StackPanel Grid.Row="4" HorizontalAlignment="Center" Margin="0,0,0,8">
+            <Button Content="开始网络体检"
+                    Command="{Binding StartCheckupCommand}"
+                    Padding="28,12"
+                    FontSize="15"
+                    MinWidth="200" />
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="12"
+                       HorizontalAlignment="Center"
+                       Margin="0,10,0,0"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</Window>

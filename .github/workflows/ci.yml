@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # Linux: 只构建和测试跨平台的 Core
+  linux-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build Core
+        run: dotnet build src/NetMedic.Core/NetMedic.Core.csproj --configuration Debug
+      - name: Test Core
+        run: dotnet test tests/NetMedic.Tests/NetMedic.Tests.csproj --configuration Debug --no-build
+
+  # Windows: 构建整个 solution（含 WPF）
+  windows-full:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Format check
+        run: dotnet format NetMedic.slnx --verify-no-changes --verbosity minimal
+      - name: Build
+        run: dotnet build NetMedic.slnx --configuration Debug
+      - name: Test
+        run: dotnet test NetMedic.slnx --configuration Debug --no-build

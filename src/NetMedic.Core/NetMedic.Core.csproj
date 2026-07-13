@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>NetMedic.Core</AssemblyName>
+    <RootNamespace>NetMedic.Core</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>网络急救箱 NetMedic</Product>
+  </PropertyGroup>
+
+</Project>
