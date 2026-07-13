@@ -304,15 +304,6 @@ namespace NetMedic.App.Resources {
         }
 
         /// <summary>
-        ///   查找类似 修复已执行（模拟）。实际修复将在后续阶段实现。 的本地化字符串。
-        /// </summary>
-        public static string RepairResult_FakeSuccess {
-            get {
-                return ResourceManager.GetString("RepairResult_FakeSuccess", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   查找类似 安全修复 的本地化字符串。
         /// </summary>
         public static string SafeRepair {

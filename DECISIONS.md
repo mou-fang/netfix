@@ -28,10 +28,10 @@
 ## ADR-004：本地 CI 为主，GH Actions 配置备用
 
 - 日期：2026-07-13
-- 状态：已采纳
-- 决策：提供 `scripts/ci.sh` 本地质量门禁 + `.github/workflows/ci.yml` ready-to-enable 文件。本地脚本是主门禁。
-- 理由：用户当前无 GitHub 仓库，但任务书要求 CI 配置就位。
-- 影响：连上 GitHub 后 GH Actions 自动生效。
+- 状态：已采纳（已更新：GitHub 仓库和 Actions 已实际运行）
+- 决策：提供 `scripts/ci.sh` 本地质量门禁 + `.github/workflows/ci.yml` CI 配置文件。本地脚本和 GitHub Actions 均为主门禁。
+- 理由：任务书要求 CI 配置就位；GitHub 仓库 `mou-fang/netfix` 已创建，Actions 已实际触发并通过。
+- 影响：推送 main 或 PR 时自动触发 Linux（ubuntu-latest）+ Windows（windows-latest）双平台 CI。
 
 ## ADR-005：solution 使用 .slnx 格式
 
@@ -160,3 +160,39 @@
 - 决策：普通 `dotnet test` 默认只运行可重复的单元/模拟测试（52 项），不依赖公网。真实公网和 Windows 探针测试标记为 Integration（8 项），通过 `NETMEDIC_INTEGRATION_TESTS=1` 环境变量触发。
 - 理由：CI 和开发时不应依赖公网可用性；真实验证需显式触发。
 - 影响：`IntegrationFact`/`IntegrationTheory` 自定义特性；报告分别列出结果。
+
+## ADR-021：计划修复动作与可执行修复动作分离
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 背景：任务书计划了多个修复动作 ID（FIX-PRX-01、FIX-DNS-01 等），但阶段 3 尚无真实 `IRepairAction` 实现。需要一个机制记录将来计划，同时不误报当前可执行能力。
+- 决策：`PlannedRepairActionIds` 记录任务书计划将来实现的动作 ID（仅记录，不代表当前可执行）；`ExecutableRepairActions` 为空集合，直到阶段 4 有真实 `IRepairAction` 实现并完成事务/快照/复检/安全测试后才逐个加入。不得根据 `PlannedRepairActionIds` 判断是否显示修复按钮。
+- 理由：避免用户看到不可执行的修复按钮；明确区分"计划"与"当前能力"。
+- 影响：所有规则的 `RecommendedActionId = null`；`SupportedRepairActions`（旧名）标记为 Obsolete，指向 `ExecutableRepairActions`。
+
+## ADR-022：生产环境不使用伪成功
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 背景：阶段 1 假流程中有 `RepairResult_FakeSuccess` 和修复确认/修复结果页面。阶段 3 进入生产诊断后，伪成功会误导用户。
+- 决策：删除 `RepairResult_FakeSuccess`；修复确认页（RepairConfirm）和修复结果页（RepairResult）在阶段 3 不可达。用户结果页不显示修复按钮。
+- 理由：生产环境中不向用户展示虚假的成功反馈；没有真实修复能力时不应引导用户进入修复流程。
+- 影响：`AppPage.RepairConfirm` 和 `AppPage.RepairResult` 在阶段 3 无导航入口；阶段 4 实现真实修复后重新启用。
+
+## ADR-023：DNS 路径失败 ≠ DNS 缓存异常
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 背景：`DnsFailureRule` 检测 DNS-02 失败（系统 DNS 解析失败 + NET-03 网关正常）。早期实现曾推荐 FIX-DNS-01（清缓存），但服务器不可达与缓存污染是不同的问题。
+- 决策：`DnsFailureRule` 不推荐 FIX-DNS-01。清除 DNS 缓存需要直接的缓存异常证据（如缓存了过期/错误记录），未来由 `DnsCacheAnomalyRule` 处理。当前阶段无 DNS 缓存探针（DNS-03/DNS-04），不推荐任何缓存相关修复。
+- 理由：DNS 服务器不可达时清缓存无意义；错误地推荐不相关修复会损害用户信任。
+- 影响：`DnsFailureRule.RecommendedActionId = null`；`PlannedRepairActionIds` 保留 FIX-DNS-01 供将来缓存异常规则使用。
+
+## ADR-024：阶段 4 按动作逐个开启修复能力，非字符串白名单
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 背景：阶段 3.3 曾考虑通过字符串白名单批量开启修复动作。但这绕过了单个动作的安全验证。
+- 决策：阶段 4 每个 `IRepairAction` 实现必须完成完整的事务（transaction）、快照（snapshot）、复检（verify）和回滚（rollback）流程，通过安全测试后，其动作 ID 才被加入 `ExecutableRepairActions`。不能提前批量开启。
+- 理由：每个修复动作的风险和回滚需求不同；批量开启会跳过逐动作安全验证，违反任务书 §7 安全要求。
+- 影响：`ExecutableRepairActions` 从空集合开始，阶段 4 按动作完成进度逐步增长；规则代码通过检查 `ExecutableRepairActions.Contains(actionId)` 决定是否设置 `RecommendedActionId`。

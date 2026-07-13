@@ -6,7 +6,10 @@ namespace NetMedic.Core.Diagnostics.Rules;
 /// <summary>
 /// 规则：检测失效本地代理。
 /// 证据：PRX-01 配置显示代理启用且 is_loopback=true + PRX-04 端口未监听 Failed + WEB-02 直连成功。
-/// 不再要求 PRX-01 Failed -- PRX-01 只读配置，代理启用时仍为 Passed。
+/// 阶段 3.3 修正：
+/// - 必须显式验证 is_loopback=true（非回环远程代理不可达不命中）。
+/// - 必须验证 PRX-01 和 PRX-04 检查的是同一个 host/port。
+/// - RecommendedActionId = null（阶段 3 无真实修复实现）。
 /// </summary>
 public sealed class DeadLocalProxyRule : IDiagnosisRule
 {
@@ -35,8 +38,26 @@ public sealed class DeadLocalProxyRule : IDiagnosisRule
             return null;
         }
 
+        // 必须显式验证 is_loopback=true
+        bool isLoopback = prx01.Evidence.TryGetValue("is_loopback", out var loopbackObj) && loopbackObj is true;
+        if (!isLoopback)
+        {
+            return null;
+        }
+
         // PRX-04 必须为 Failed（端口未监听）
         if (prx04.Status != ProbeStatus.Failed)
+        {
+            return null;
+        }
+
+        // 必须验证 PRX-01 和 PRX-04 检查的是同一个 host/port
+        string? prx01Host = prx01.Evidence.TryGetValue("proxy_host", out var h1) ? h1?.ToString() : null;
+        int prx01Port = prx01.Evidence.TryGetValue("proxy_port", out var p1) && p1 is int pp1 ? pp1 : 0;
+        string? prx04Host = prx04.Evidence.TryGetValue("proxy_host", out var h4) ? h4?.ToString() : null;
+        int prx04Port = prx04.Evidence.TryGetValue("proxy_port", out var p4) && p4 is int pp4 ? pp4 : 0;
+
+        if (prx01Host != prx04Host || prx01Port != prx04Port)
         {
             return null;
         }
@@ -51,15 +72,15 @@ public sealed class DeadLocalProxyRule : IDiagnosisRule
         var counterEvidence = ProtectedContextEvaluator.GetProtectedContextEvidenceIds(snapshot);
 
         var confidence = protectedCtx ? Confidence.Medium : Confidence.High;
-        var actionId = protectedCtx ? null : "FIX-PRX-01";
 
+        // 阶段 3.3：无真实修复实现，RecommendedActionId = null
         return Finding.Create(
             id: this.Id, confidence: confidence, severity: FindingSeverity.High,
             titleKey: "finding.dead_local_proxy.title",
             explanationKey: "finding.dead_local_proxy.explanation",
             userSummaryKey: "finding.dead_local_proxy.summary",
             guidanceKey: "finding.dead_local_proxy.guidance",
-            recommendedActionId: actionId,
+            recommendedActionId: null,
             evidenceIds: ["PRX-01", "PRX-04", "WEB-02"],
             counterEvidenceIds: counterEvidence,
             protectedContextDowngrade: protectedCtx);
@@ -206,6 +227,10 @@ public sealed class ApipaDhcpRule : IDiagnosisRule
 /// <summary>
 /// 规则：检测 DNS 路径异常。
 /// 证据：DNS-02 Failed + NET-03 Passed（有网关）。
+/// 阶段 3.3 修正：
+/// - DNS 路径异常 ≠ DNS 缓存异常。当前无 DNS-03/DNS-04 缓存探针。
+/// - 不推荐 FIX-DNS-01（清缓存），因为服务器不可达不等于缓存问题。
+/// - 清缓存只能在有直接缓存异常证据时推荐（未来 DnsCacheAnomalyRule）。
 /// </summary>
 public sealed class DnsFailureRule : IDiagnosisRule
 {
@@ -236,27 +261,18 @@ public sealed class DnsFailureRule : IDiagnosisRule
             counterEvidence.Add("WEB-02");
         }
 
-        Confidence confidence;
-        string? actionId;
+        var confidence = protectedCtx
+            ? (gatewayOk ? Confidence.Medium : Confidence.Insufficient)
+            : (gatewayOk ? Confidence.High : Confidence.Medium);
 
-        if (protectedCtx)
-        {
-            confidence = gatewayOk ? Confidence.Medium : Confidence.Insufficient;
-            actionId = null;
-        }
-        else
-        {
-            confidence = gatewayOk ? Confidence.High : Confidence.Medium;
-            actionId = "FIX-DNS-01";
-        }
-
+        // 阶段 3.3：DNS 路径异常不等于缓存异常，不推荐清缓存
         return Finding.Create(
             id: this.Id, confidence: confidence, severity: FindingSeverity.High,
             titleKey: "finding.dns_failure.title",
             explanationKey: "finding.dns_failure.explanation",
             userSummaryKey: "finding.dns_failure.summary",
             guidanceKey: "finding.dns_failure.guidance",
-            recommendedActionId: actionId,
+            recommendedActionId: null,
             evidenceIds: ["DNS-02", "NET-03"],
             counterEvidenceIds: counterEvidence,
             protectedContextDowngrade: protectedCtx);
@@ -527,14 +543,31 @@ public sealed class InconclusiveRule : IDiagnosisRule
 public static class BuiltinRuleRegistry
 {
     /// <summary>
-    /// 当前已实现的修复动作集合。
-    /// 只有 FIX-PRX-01 和 FIX-DNS-01 在阶段 4 实现，其他不得在 UI 显示"安全修复"。
+    /// 当前真正存在实现、可以执行的修复动作注册表。
+    /// 阶段 3.3：无真实 IRepairAction 实现，此集合为空。
+    /// 阶段 4 每完成一个真实动作的事务、快照、复检和安全测试后，
+    /// 由动作实现注册成功后才加入此集合，不能提前批量开启。
     /// </summary>
-    public static IReadOnlySet<string> SupportedRepairActions { get; } = new HashSet<string>
+    public static IReadOnlySet<string> ExecutableRepairActions { get; } = new HashSet<string>();
+
+    /// <summary>
+    /// 任务书计划将来实现的动作 ID（仅记录，不代表当前可执行）。
+    /// 不得根据此集合判断是否显示修复按钮。
+    /// </summary>
+    public static IReadOnlySet<string> PlannedRepairActionIds { get; } = new HashSet<string>
     {
         "FIX-PRX-01",
         "FIX-DNS-01",
+        "FIX-PRX-02",
+        "FIX-PRX-03",
+        "FIX-DHCP-01",
     };
+
+    /// <summary>
+    /// 旧名称兼容（已废弃，使用 ExecutableRepairActions）。
+    /// </summary>
+    [Obsolete("Use ExecutableRepairActions instead.")]
+    public static IReadOnlySet<string> SupportedRepairActions => ExecutableRepairActions;
 
     public static RuleRegistry CreateDefault()
     {

@@ -145,3 +145,72 @@ dotnet test --environment NETMEDIC_INTEGRATION_TESTS=1
 | IPv6 黑洞 | 需要 IPv6 不可达但 IPv4 正常的网络 | 阶段 5+ |
 
 **重要**：以上场景未通过真实故障验证。阶段 2 不在当前主力电脑上制造故障。Windows VM 必须在阶段 3 完成前配置。
+
+---
+
+## 阶段 3 测试记录
+
+### GitHub Actions CI 运行记录
+
+GitHub 仓库：`mou-fang/netfix`，CI 已实际触发并多次通过。
+
+| Run ID | 提交 | 结论 | 时间 |
+|---|---|---|---|
+| 29243264893 | 阶段3.2: 用户结果页与最终契约收尾 | success | 2026-07-13T10:35:07Z |
+| 29231480882 | 阶段3.1: 真实探针对齐与用户结论闭环 | success | 2026-07-13T07:15:26Z |
+| 29227803373 | 阶段3: 诊断规则和普通用户结论 (代码完成, 真实验证阻塞) | success | 2026-07-13T06:02:06Z |
+| 29226994733 | 阶段2.4: 真实测试与遗漏修正 | success | 2026-07-13T05:43:02Z |
+| 29226589565 | 阶段2.3: 语义与资源安全收尾 | success | 2026-07-13T05:33:15Z |
+
+### Windows Runner 说明
+
+GitHub Actions `windows-latest` Runner 是 github-hosted 的 **Windows Server**，不是 Windows 11 桌面 VM。它用于构建和运行测试，**不能用于故障注入测试**（无法修改网络配置、制造 DHCP 失效、设置失效代理等）。故障注入需要独立的 Windows 11 VM。
+
+### 默认单元测试计数（无集成测试，不依赖公网）
+
+| TFM | 通过 | 跳过 | 总计 |
+|---|---|---|---|
+| net10.0 | 144 | 0 | 144 |
+| net10.0-windows | 154 | 8 | 162 |
+
+- net10.0：跨平台 Core 逻辑 + 规则引擎 + 模拟场景测试，Linux CI 运行同一组。
+- net10.0-windows：增加 Windows 探针相关测试；8 项集成测试默认跳过（需 `NETMEDIC_INTEGRATION_TESTS=1`）。
+
+### 阶段 3 诊断规则验证（模拟环境）
+
+10 个场景 fixture 全部通过，覆盖 10 条规则 + InconclusiveRule 兜底：
+
+| 场景 | 预期规则 | 可信度 | 修复动作 |
+|---|---|---|---|
+| L01_Healthy | finding.network_healthy | High | null |
+| L02_DeadLocalProxy | finding.dead_local_proxy | High | null |
+| L09_DnsFailure | finding.dns_failure | High | null |
+| L14_NcsiMismatch | finding.ncsi_mismatch | High | null |
+| L15_SingleSiteIssue | finding.target_unreachable | High | null |
+| L20_WinHttpProxyConfig | finding.winhttp_proxy_config | Medium | null |
+| L21_PacUnreachable | finding.pac_unreachable | High | null |
+| L22_ApipaDhcp | finding.apipa_dhcp | High | null |
+| L23_CaptivePortal | finding.captive_portal | High | null |
+| L24_ExternalService | finding.target_unreachable | High | null |
+
+所有 Finding 的 `RecommendedActionId = null`；`ExecutableRepairActions` 为空集。
+
+### 故障注入限制（无真实故障验证）
+
+以下故障场景**未在真实环境下验证**，GitHub Actions Windows Runner 无法进行故障注入：
+
+| 场景 | 说明 | 阻塞阶段 |
+|---|---|---|
+| 真实代理失效 | 需设置 127.0.0.1:端口代理后关闭代理程序 | 阶段 4 |
+| 真实 PAC 不可达 | 需配置无效 PAC URL | 阶段 4 |
+| 真实 DNS 服务器不可达 | 需修改 DNS 指向无效地址 | 阶段 3+ |
+| 真实 APIPA 地址 | 需制造 DHCP 失效获取 169.254 地址 | 阶段 3+ |
+| 真实认证门户 | 需连接酒店/校园 Wi-Fi | 阶段 5+ |
+| 真实 NCSI 不一致 | 需模拟 NCSI 失败但 HTTPS 正常 | 阶段 3+ |
+| 真实 VPN 残留路由 | 需连接后断开 VPN | 阶段 5+ |
+| 真实 IPv6 黑洞 | 需 IPv6 不可达但 IPv4 正常的网络 | 阶段 5+ |
+
+### 阻塞项
+
+- **Windows VM 尚未配置。** 阶段 3 诊断规则仅在模拟环境验证，真实故障注入需 Windows 11 VM。GitHub Actions Windows Runner 不是故障 VM。
+- **阶段 4 阻塞。** 修复功能（`IRepairAction` 实现）在 Windows VM 配置前不得开始。

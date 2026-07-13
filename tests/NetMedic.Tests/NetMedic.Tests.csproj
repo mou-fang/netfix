@@ -26,6 +26,7 @@
     <Compile Remove="WindowsProbeVerificationTests.cs" />
     <Compile Remove="WindowsTlsTests.cs" />
     <Compile Remove="IntegrationTestAttributes.cs" />
+    <Compile Remove="ResourceIntegrityTests.cs" />
   </ItemGroup>
 
   <!-- net10.0-windows: 引用 Core + App（含 Windows 集成测试） -->

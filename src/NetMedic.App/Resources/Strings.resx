@@ -159,9 +159,6 @@
   <data name="RepairConfirm_Yes" xml:space="preserve"><value>是</value></data>
   <data name="RepairConfirm_No" xml:space="preserve"><value>否</value></data>
 
-  <!-- 修复结果（假流程） -->
-  <data name="RepairResult_FakeSuccess" xml:space="preserve"><value>修复已执行（模拟）。实际修复将在后续阶段实现。</value></data>
-
   <!-- 阶段0占位 -->
   <data name="Placeholder_NotImplemented" xml:space="preserve"><value>功能将在后续阶段实现。</value></data>
 </root>

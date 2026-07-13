@@ -236,8 +236,9 @@ public sealed partial class MainViewModel : ObservableObject
         this.PrimaryExplanation = Strings.GetString(primary.ExplanationKey);
         this.PrimaryGuidance = primary.GuidanceKey is null ? string.Empty : Strings.GetString(primary.GuidanceKey);
         this.HasGuidance = !string.IsNullOrEmpty(primary.GuidanceKey);
+        // 阶段 3.3：ExecutableRepairActions 为空，首选 Finding 不显示修复按钮。
         this.CanRepairPrimaryFinding = primary.RecommendedActionId is not null
-            && BuiltinRuleRegistry.SupportedRepairActions.Contains(primary.RecommendedActionId);
+            && BuiltinRuleRegistry.ExecutableRepairActions.Contains(primary.RecommendedActionId);
         this.IsGuidanceVisible = false;
     }
 
@@ -285,8 +286,9 @@ public sealed partial class MainViewModel : ObservableObject
     private void RequestRepair()
     {
         var actionId = this.PrimaryFinding?.RecommendedActionId;
-        if (actionId is null || !BuiltinRuleRegistry.SupportedRepairActions.Contains(actionId))
+        if (actionId is null || !BuiltinRuleRegistry.ExecutableRepairActions.Contains(actionId))
         {
+            // 阶段 3.3：ExecutableRepairActions 为空，无可执行修复，修复确认页不可达。
             return;
         }
 
@@ -303,13 +305,16 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>确认执行修复（假流程）。</summary>
+    /// <summary>
+    /// 确认执行修复。
+    /// 阶段 3.3：无可执行修复动作，修复确认/结果页不可达，此处不做任何操作。
+    /// 阶段 4 引入真实 IRepairAction 实现后，再在此处执行修复并跳转 RepairResult。
+    /// </summary>
     [RelayCommand]
     private void ConfirmRepair()
     {
-        // 阶段 1：假修复，不执行真实操作
-        this.ResultMessage = Strings.RepairResult_FakeSuccess;
-        this.CurrentPage = AppPage.RepairResult;
+        // 阶段 3.3：无可执行修复，不设置假成功文案，不跳转 RepairResult。
+        return;
     }
 
     /// <summary>切换技术详情可见性。</summary>

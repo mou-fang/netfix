@@ -58,7 +58,7 @@ public class ScenarioTests
     }
 
     /// <summary>
-    /// L02 失效本地代理：应推荐 FIX-PRX-01。
+    /// L02 失效本地代理：阶段 3.3 无真实修复实现，不应推荐修复动作。
     /// </summary>
     [Fact]
     public async Task L02_DeadLocalProxy_RecommendsDisableProxy()
@@ -66,11 +66,11 @@ public class ScenarioTests
         var findings = await RunDiagnosisAsync(ScenarioFixtures.L02_DeadLocalProxy().Environment);
         var primary = findings.First();
         Assert.Equal("finding.dead_local_proxy", primary.Id);
-        Assert.Equal("FIX-PRX-01", primary.RecommendedActionId);
+        Assert.Null(primary.RecommendedActionId);
     }
 
     /// <summary>
-    /// L09 DNS 故障：应推荐 FIX-DNS-01。
+    /// L09 DNS 故障：阶段 3.3 无真实修复实现，不应推荐修复动作。
     /// </summary>
     [Fact]
     public async Task L09_DnsFailure_RecommendsFlushDns()
@@ -78,7 +78,7 @@ public class ScenarioTests
         var findings = await RunDiagnosisAsync(ScenarioFixtures.L09_DnsFailure().Environment);
         var primary = findings.First();
         Assert.Equal("finding.dns_failure", primary.Id);
-        Assert.Equal("FIX-DNS-01", primary.RecommendedActionId);
+        Assert.Null(primary.RecommendedActionId);
     }
 
     /// <summary>

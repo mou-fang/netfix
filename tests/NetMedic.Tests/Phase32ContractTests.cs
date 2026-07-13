@@ -51,8 +51,9 @@ public class Phase32ContractTests
     // === 2. 修复按钮显示/隐藏测试 ===
 
     /// <summary>
-    /// 所有 Finding 的 RecommendedActionId 必须属于 SupportedRepairActions，
+    /// 所有 Finding 的 RecommendedActionId 必须属于 ExecutableRepairActions，
     /// 或者为 null。
+    /// 阶段 3.3：ExecutableRepairActions 为空，因此所有 RecommendedActionId 必须为 null。
     /// </summary>
     [Theory]
     [MemberData(nameof(AllScenarios))]
@@ -63,14 +64,40 @@ public class Phase32ContractTests
         {
             if (f.RecommendedActionId is not null)
             {
-                Assert.True(BuiltinRuleRegistry.SupportedRepairActions.Contains(f.RecommendedActionId),
-                    $"{f.Id}: RecommendedActionId '{f.RecommendedActionId}' not in supported set");
+                Assert.True(BuiltinRuleRegistry.ExecutableRepairActions.Contains(f.RecommendedActionId),
+                    $"{f.Id}: RecommendedActionId '{f.RecommendedActionId}' not in ExecutableRepairActions");
             }
         }
     }
 
     /// <summary>
-    /// FIX-PRX-01（失效代理）：CanRepairPrimaryFinding = true
+    /// 阶段 3.3：所有场景的所有 Finding 的 RecommendedActionId 必须为 null。
+    /// </summary>
+    [Fact]
+    public void AllFindings_RecommendedActionId_IsNull_InStage3()
+    {
+        foreach (var fixture in ScenarioFixtures.All())
+        {
+            var findings = RunDiagnosis(fixture.Environment);
+            foreach (var f in findings)
+            {
+                Assert.Null(f.RecommendedActionId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 阶段 3.3：ExecutableRepairActions 必须为空（无真实 IRepairAction 实现）。
+    /// </summary>
+    [Fact]
+    public void ExecutableRepairActions_IsEmpty_InStage3()
+    {
+        Assert.Empty(BuiltinRuleRegistry.ExecutableRepairActions);
+    }
+
+    /// <summary>
+    /// FIX-PRX-01（失效代理）：阶段 3.3 ExecutableRepairActions 为空，
+    /// RecommendedActionId 为 null，CanRepairPrimaryFinding = false（不显示按钮）。
     /// </summary>
     [Fact]
     public void CanRepair_PrimaryFinding_FIX_PRX_01_ShowsButton()
@@ -78,12 +105,15 @@ public class Phase32ContractTests
         var findings = RunDiagnosis(ScenarioFixtures.L02_DeadLocalProxy().Environment);
         var primary = findings.First();
         Assert.Equal("finding.dead_local_proxy", primary.Id);
-        Assert.Equal("FIX-PRX-01", primary.RecommendedActionId);
-        Assert.True(BuiltinRuleRegistry.SupportedRepairActions.Contains(primary.RecommendedActionId!));
+        Assert.Null(primary.RecommendedActionId);
+        // ExecutableRepairActions 为空，即使存在 action id 也不应显示修复按钮
+        Assert.False(primary.RecommendedActionId is not null
+            && BuiltinRuleRegistry.ExecutableRepairActions.Contains(primary.RecommendedActionId));
     }
 
     /// <summary>
-    /// FIX-DNS-01（DNS 故障）：CanRepairPrimaryFinding = true
+    /// FIX-DNS-01（DNS 故障）：阶段 3.3 ExecutableRepairActions 为空，
+    /// RecommendedActionId 为 null，CanRepairPrimaryFinding = false（不显示按钮）。
     /// </summary>
     [Fact]
     public void CanRepair_PrimaryFinding_FIX_DNS_01_ShowsButton()
@@ -91,8 +121,10 @@ public class Phase32ContractTests
         var findings = RunDiagnosis(ScenarioFixtures.L09_DnsFailure().Environment);
         var primary = findings.First();
         Assert.Equal("finding.dns_failure", primary.Id);
-        Assert.Equal("FIX-DNS-01", primary.RecommendedActionId);
-        Assert.True(BuiltinRuleRegistry.SupportedRepairActions.Contains(primary.RecommendedActionId!));
+        Assert.Null(primary.RecommendedActionId);
+        // ExecutableRepairActions 为空，即使存在 action id 也不应显示修复按钮
+        Assert.False(primary.RecommendedActionId is not null
+            && BuiltinRuleRegistry.ExecutableRepairActions.Contains(primary.RecommendedActionId));
     }
 
     /// <summary>

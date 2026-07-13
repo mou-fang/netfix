@@ -21,7 +21,8 @@ public static class ScenarioFixtures
         ExpectedRecommendedActionId: null);
 
     /// <summary>
-    /// L02: 本地代理 127.0.0.1:7890 无监听，直连成功。预期：建议关闭失效代理。
+    /// L02: 本地代理 127.0.0.1:7890 无监听，直连成功。预期：识别失效代理。
+    /// 阶段 3.3：无真实修复实现，ExpectedRecommendedActionId = null。
     /// </summary>
     public static ScenarioFixture L02_DeadLocalProxy() => new(
         Name: "L02_DeadLocalProxy",
@@ -38,11 +39,12 @@ public static class ScenarioFixtures
         },
         ExpectedFindingId: "finding.dead_local_proxy",
         ExpectedConfidence: Confidence.High,
-        ExpectedRecommendedActionId: "FIX-PRX-01");
+        ExpectedRecommendedActionId: null);
 
     /// <summary>
     /// L09: DNS 服务器不可达。预期：归类 DNS 故障。
     /// 网关/路由正常，直连 TCP 正常，但系统 DNS 解析失败。
+    /// 阶段 3.3：无真实修复实现，ExpectedRecommendedActionId = null。
     /// </summary>
     public static ScenarioFixture L09_DnsFailure() => new(
         Name: "L09_DnsFailure",
@@ -62,7 +64,7 @@ public static class ScenarioFixtures
         },
         ExpectedFindingId: "finding.dns_failure",
         ExpectedConfidence: Confidence.High,
-        ExpectedRecommendedActionId: "FIX-DNS-01");
+        ExpectedRecommendedActionId: null);
 
     /// <summary>
     /// L14: NCSI 报无网但 HTTPS 正常。预期：说明图标异常，不修复网络。

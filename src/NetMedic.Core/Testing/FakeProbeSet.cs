@@ -170,6 +170,24 @@ public static class FakeProbeSet
                     return ProbeResult.Skip("PRX-04", "probe.prx.port.no_proxy");
                 }
 
+                // 解析代理地址，与 PRX-01 保持一致，确保 host/port 证据可比对
+                var addr = e.Proxy.WininetAddress ?? "unknown";
+                string? host = null;
+                int? port = null;
+                if (!string.IsNullOrEmpty(addr))
+                {
+                    var colon = addr.LastIndexOf(':');
+                    if (colon > 0 && int.TryParse(addr[(colon + 1)..], out var p))
+                    {
+                        host = addr[..colon];
+                        port = p;
+                    }
+                    else
+                    {
+                        host = addr;
+                    }
+                }
+
                 if (e.Proxy.WininetIsLoopback && !e.Proxy.WininetPortListening)
                 {
                     return ProbeResult.Fail("PRX-04", "probe.prx.port.dead",
@@ -177,6 +195,8 @@ public static class FakeProbeSet
                         {
                             ["is_loopback"] = true,
                             ["port_listening"] = false,
+                            ["proxy_host"] = host,
+                            ["proxy_port"] = port,
                         }.AsReadOnly(),
                         severity: ProbeSeverity.High);
                 }

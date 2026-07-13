@@ -2,6 +2,39 @@
 
 本项目所有用户可见变化记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.4.0] - 2026-07-13
+
+### 阶段 3：诊断规则和普通用户结论
+
+#### 新增
+- 诊断规则引擎：10 条内置规则 + InconclusiveRule 兜底结论。
+  - DeadLocalProxyRule、WinHttpProxyConfigRule、PacUnreachableRule、ApipaDhcpRule、DnsFailureRule、NcsiMismatchRule、CaptivePortalRule、TargetUnreachableRule、NetworkHealthyRule、InconclusiveRule。
+- 用户结果页：普通语言摘要（userSummaryKey）+ 引导面板（guidanceKey），与技术详情（explanationKey）分离显示。
+- ProtectedContextEvaluator：域加入/RDP 会话/多活动网卡时自动降级结论可信度，并在反证中引用保护上下文探针。
+- 规则冲突处理：无重复 Finding、无矛盾首选结论（如健康与故障不并存、NCSI 不一致与认证门户不并存）。
+- 10 个场景 fixture（L01/L02/L09/L14/L15 + L20/L21/L22/L23/L24），覆盖全部规则路径。
+- 资源完整性测试：每条 Finding 的 TitleKey/ExplanationKey/UserSummaryKey/GuidanceKey 非空。
+- NET-01 契约对照测试：单网卡/多网卡/无网关三种场景。
+- AdapterSelectionEvaluator：多网卡候选列表与主接口选择纯函数。
+
+#### 变更
+- Finding 模型扩展：增加 Severity、UserSummaryKey、GuidanceKey、CounterEvidenceIds、ProtectedContextDowngrade 字段。
+- 所有规则 RecommendedActionId = null（阶段 3 无可执行修复）。
+- ExecutableRepairActions 集合为空；PlannedRepairActionIds 仅记录计划。
+- 删除 RepairResult_FakeSuccess；修复确认页和修复结果页在阶段 3 不可达。
+- DnsFailureRule 不推荐 FIX-DNS-01（DNS 路径失败 ≠ 缓存异常）。
+- NetworkHealthyRule 增加 PRX-02/PRX-03/PRX-04/WEB-01 排除条件，避免与故障结论矛盾。
+
+#### 安全
+- 本版本无修复能力：不显示安全修复按钮，不执行任何系统修改。
+- 无伪成功：不向用户展示虚假的修复成功反馈。
+- 保护上下文降级：域/RDP/多网卡环境下自动降低自动修复建议的信任等级。
+
+#### 已知限制
+- 诊断规则仅在模拟环境验证；真实故障注入需 Windows VM（阻塞项）。
+- 无修复能力（ExecutableRepairActions 为空）。
+- 8 项集成测试默认跳过，需 NETMEDIC_INTEGRATION_TESTS=1 触发。
+
 ## [0.3.1] - 2026-07-13
 
 ### 阶段 2.1：探针语义修正
