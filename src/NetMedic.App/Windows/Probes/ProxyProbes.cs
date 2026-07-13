@@ -47,13 +47,14 @@ public sealed class WininetProxyProbe : WindowsProbeBase
 
         // PRX-01 只读取配置，不检测端口
         // 阶段 3.0 隐私加固：proxy_host 必须从脱敏结果安全解析，不能从含凭据的原始 ProxyServer 解析
+        // 使用共享 ProxyEndpointParser，确保 PRX-01/PRX-04/Fake 证据一致（含 IPv6 支持）
         if (proxyEnabled && !string.IsNullOrWhiteSpace(proxyServer))
         {
             var sanitizedProxy = UrlSanitizer.SanitizeProxyServer(proxyServer);
-            var (host, port) = ParseProxyServer(sanitizedProxy);
-            evidence["proxy_host"] = host ?? string.Empty;
-            evidence["proxy_port"] = port;
-            evidence["is_loopback"] = host is "127.0.0.1" or "localhost" or "::1";
+            var endpoint = ProxyEndpointParser.TryParse(sanitizedProxy);
+            evidence["proxy_host"] = endpoint?.Host ?? string.Empty;
+            evidence["proxy_port"] = endpoint?.Port ?? 0;
+            evidence["is_loopback"] = endpoint?.IsLoopback ?? false;
         }
 
         if (!proxyEnabled)
@@ -64,28 +65,6 @@ public sealed class WininetProxyProbe : WindowsProbeBase
 
         return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.wininet.active",
             evidence: evidence.AsReadOnly()));
-    }
-
-    private static (string? host, int port) ParseProxyServer(string? proxyServer)
-    {
-        if (string.IsNullOrWhiteSpace(proxyServer))
-        {
-            return (null, 0);
-        }
-
-        var first = proxyServer.Split(';')[0].Trim();
-        if (first.Contains('='))
-        {
-            first = first.Split('=')[1];
-        }
-
-        var parts = first.Split(':');
-        if (parts.Length >= 2 && int.TryParse(parts[^1], out var port))
-        {
-            return (parts[0], port);
-        }
-
-        return (first, 0);
     }
 }
 
@@ -361,27 +340,25 @@ public sealed class LocalProxyPortProbe : WindowsProbeBase
             return ProbeResult.Skip(this.Id, "probe.prx.port.no_proxy");
         }
 
-        var first = proxyServer.Split(';')[0].Trim();
-        if (first.Contains('='))
+        var sanitizedProxy = UrlSanitizer.SanitizeProxyServer(proxyServer);
+        var endpoint = ProxyEndpointParser.TryParse(sanitizedProxy);
+        if (endpoint is null)
         {
-            first = first.Split('=')[1];
+            evidence["proxy_active"] = false;
+            return ProbeResult.Skip(this.Id, "probe.prx.port.no_proxy");
         }
 
-        var parts = first.Split(':');
-        string host = parts[0];
-        int port = parts.Length >= 2 && int.TryParse(parts[^1], out var p) ? p : 0;
+        string host = endpoint.Host;
+        int port = endpoint.Port;
 
         evidence["proxy_host"] = host;
         evidence["proxy_port"] = port;
+        evidence["is_loopback"] = endpoint.IsLoopback;
 
-        bool isLoopback = host is "127.0.0.1" or "localhost" or "::1";
-        if (!isLoopback)
+        if (!endpoint.IsLoopback)
         {
-            evidence["is_loopback"] = false;
             return ProbeResult.Skip(this.Id, "probe.prx.port.not_loopback");
         }
-
-        evidence["is_loopback"] = true;
 
         // 异步连接检测端口（不使用同步 .Wait()）
         bool listening = false;

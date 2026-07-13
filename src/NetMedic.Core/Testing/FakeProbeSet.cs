@@ -103,30 +103,18 @@ public static class FakeProbeSet
                 }
 
                 // 代理启用 -> Passed。PRX-01 只读配置，端口检测由 PRX-04 负责。
-                var addr = e.Proxy.WininetAddress ?? "unknown";
-                string? host = null;
-                int? port = null;
-                if (!string.IsNullOrEmpty(addr))
-                {
-                    var colon = addr.LastIndexOf(':');
-                    if (colon > 0 && int.TryParse(addr[(colon + 1)..], out var p))
-                    {
-                        host = addr[..colon];
-                        port = p;
-                    }
-                    else
-                    {
-                        host = addr;
-                    }
-                }
+                // 使用共享 ProxyEndpointParser，确保与真实探针证据完全一致（含 IPv6）
+                var endpoint = ProxyEndpointParser.TryParse(e.Proxy.WininetAddress);
+                string? host = endpoint?.Host;
+                int? port = endpoint?.Port;
 
                 return ProbeResult.Pass("PRX-01", "probe.prx.wininet.active",
                     evidence: new Dictionary<string, object?>
                     {
                         ["proxy_enabled"] = true,
-                        ["is_loopback"] = e.Proxy.WininetIsLoopback,
-                        ["proxy_host"] = host,
-                        ["proxy_port"] = port,
+                        ["is_loopback"] = endpoint?.IsLoopback ?? e.Proxy.WininetIsLoopback,
+                        ["proxy_host"] = host ?? string.Empty,
+                        ["proxy_port"] = port ?? 0,
                     }.AsReadOnly());
             }),
 
@@ -170,33 +158,21 @@ public static class FakeProbeSet
                     return ProbeResult.Skip("PRX-04", "probe.prx.port.no_proxy");
                 }
 
-                // 解析代理地址，与 PRX-01 保持一致，确保 host/port 证据可比对
-                var addr = e.Proxy.WininetAddress ?? "unknown";
-                string? host = null;
-                int? port = null;
-                if (!string.IsNullOrEmpty(addr))
-                {
-                    var colon = addr.LastIndexOf(':');
-                    if (colon > 0 && int.TryParse(addr[(colon + 1)..], out var p))
-                    {
-                        host = addr[..colon];
-                        port = p;
-                    }
-                    else
-                    {
-                        host = addr;
-                    }
-                }
+                // 使用共享 ProxyEndpointParser，与 PRX-01 保持一致，确保 host/port 证据可比对
+                var endpoint = ProxyEndpointParser.TryParse(e.Proxy.WininetAddress);
+                string? host = endpoint?.Host;
+                int? port = endpoint?.Port;
+                bool isLoopback = endpoint?.IsLoopback ?? e.Proxy.WininetIsLoopback;
 
-                if (e.Proxy.WininetIsLoopback && !e.Proxy.WininetPortListening)
+                if (isLoopback && !e.Proxy.WininetPortListening)
                 {
                     return ProbeResult.Fail("PRX-04", "probe.prx.port.dead",
                         evidence: new Dictionary<string, object?>
                         {
                             ["is_loopback"] = true,
                             ["port_listening"] = false,
-                            ["proxy_host"] = host,
-                            ["proxy_port"] = port,
+                            ["proxy_host"] = host ?? string.Empty,
+                            ["proxy_port"] = port ?? 0,
                         }.AsReadOnly(),
                         severity: ProbeSeverity.High);
                 }

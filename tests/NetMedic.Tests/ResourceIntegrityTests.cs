@@ -54,7 +54,7 @@ public class ResourceIntegrityTests
     /// 验证所有计划动作的资源也存在（供阶段 4 使用）。
     /// </summary>
     [Fact]
-    public void PlannedRepairActionResources_Exist()
+    public void Phase4InitialRepairDescriptorResources_Exist()
     {
         var rm = Strings.ResourceManager;
         // FIX-PRX-01
@@ -75,9 +75,8 @@ public class ResourceIntegrityTests
     {
         var rm = Strings.ResourceManager;
         var result = rm.GetString("RepairResult_FakeSuccess");
-        // 应该返回 null（资源已删除）
-        Assert.True(result is null || result == "RepairResult_FakeSuccess",
-            "RepairResult_FakeSuccess should be removed from resources");
+        // 资源必须已删除，严格断言 null
+        Assert.Null(result);
     }
 
     private static void AssertResourceExists(ResourceManager rm, string key)

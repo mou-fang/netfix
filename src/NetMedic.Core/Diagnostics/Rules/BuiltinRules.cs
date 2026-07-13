@@ -550,25 +550,6 @@ public static class BuiltinRuleRegistry
     /// </summary>
     public static IReadOnlySet<string> ExecutableRepairActions { get; } = new HashSet<string>();
 
-    /// <summary>
-    /// 任务书计划将来实现的动作 ID（仅记录，不代表当前可执行）。
-    /// 不得根据此集合判断是否显示修复按钮。
-    /// </summary>
-    public static IReadOnlySet<string> PlannedRepairActionIds { get; } = new HashSet<string>
-    {
-        "FIX-PRX-01",
-        "FIX-DNS-01",
-        "FIX-PRX-02",
-        "FIX-PRX-03",
-        "FIX-DHCP-01",
-    };
-
-    /// <summary>
-    /// 旧名称兼容（已废弃，使用 ExecutableRepairActions）。
-    /// </summary>
-    [Obsolete("Use ExecutableRepairActions instead.")]
-    public static IReadOnlySet<string> SupportedRepairActions => ExecutableRepairActions;
-
     public static RuleRegistry CreateDefault()
     {
         var registry = new RuleRegistry();

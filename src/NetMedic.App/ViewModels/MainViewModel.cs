@@ -237,8 +237,7 @@ public sealed partial class MainViewModel : ObservableObject
         this.PrimaryGuidance = primary.GuidanceKey is null ? string.Empty : Strings.GetString(primary.GuidanceKey);
         this.HasGuidance = !string.IsNullOrEmpty(primary.GuidanceKey);
         // 阶段 3.3：ExecutableRepairActions 为空，首选 Finding 不显示修复按钮。
-        this.CanRepairPrimaryFinding = primary.RecommendedActionId is not null
-            && BuiltinRuleRegistry.ExecutableRepairActions.Contains(primary.RecommendedActionId);
+        this.CanRepairPrimaryFinding = RepairAvailabilityEvaluator.CanExecute(primary, BuiltinRuleRegistry.ExecutableRepairActions);
         this.IsGuidanceVisible = false;
     }
 

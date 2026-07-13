@@ -130,28 +130,43 @@ public class Phase33SafetyTests
     // === L01-L16 覆盖矩阵 ===
 
     /// <summary>
+    /// 覆盖状态枚举：避免使用容易漂移的中文字符串。
+    /// </summary>
+    public enum CoverageStatus
+    {
+        /// <summary>行为已覆盖：有针对该场景行为的真实测试。</summary>
+        BehaviorCovered,
+
+        /// <summary>仅安全反例：只验证不误判/不执行，无正向行为测试。</summary>
+        SafetyNegativeOnly,
+
+        /// <summary>延后：需要后续探针才能覆盖。</summary>
+        Deferred,
+    }
+
+    /// <summary>
     /// L01-L16 场景覆盖矩阵。
     /// 标注每个场景的当前覆盖状态。
     /// </summary>
-    public static readonly TheoryData<string, string, string> CoverageMatrix = new()
+    public static readonly TheoryData<string, string, CoverageStatus> CoverageMatrix = new()
     {
         // (场景ID, 描述, 状态)
-        { "L01", "健康网络，无代理/VPN", "已覆盖" },
-        { "L02", "失效本地代理", "已覆盖" },
-        { "L03", "本地代理端口正常工作", "已覆盖(反例)" },
-        { "L04", "WinHTTP自定义代理(仅配置)", "已覆盖" },
-        { "L05", "PAC不可达(家庭网络)", "已覆盖" },
-        { "L06", "PAC由策略配置(保护上下文)", "已覆盖(保护降级)" },
-        { "L07", "APIPA/DHCP异常", "已覆盖" },
-        { "L08", "静态IP无网关", "延后(需深度探针)" },
-        { "L09", "DNS服务器不可达", "已覆盖" },
-        { "L10", "DNS缓存异常(需DNS-03/04)", "延后(需深度探针)" },
-        { "L11", "正常VPN/虚拟网卡不误判", "延后(需VPN-01探针)" },
-        { "L12", "VPN退出后遗留路由", "延后(需ROUTE-01探针)" },
-        { "L13", "认证门户", "已覆盖" },
-        { "L14", "NCSI异常但HTTPS正常", "已覆盖" },
-        { "L15", "单站故障", "已覆盖" },
-        { "L16", "IPv4/IPv6分离测试", "延后(需IP-01探针)" },
+        { "L01", "健康网络，无代理/VPN", CoverageStatus.BehaviorCovered },
+        { "L02", "失效本地代理", CoverageStatus.BehaviorCovered },
+        { "L03", "本地代理端口正常工作", CoverageStatus.SafetyNegativeOnly },
+        { "L04", "WinHTTP自定义代理(仅配置)", CoverageStatus.BehaviorCovered },
+        { "L05", "PAC不可达(家庭网络)", CoverageStatus.BehaviorCovered },
+        { "L06", "PAC由策略配置(保护上下文)", CoverageStatus.SafetyNegativeOnly },
+        { "L07", "APIPA/DHCP异常", CoverageStatus.BehaviorCovered },
+        { "L08", "静态IP无网关", CoverageStatus.SafetyNegativeOnly },
+        { "L09", "DNS服务器不可达", CoverageStatus.BehaviorCovered },
+        { "L10", "DNS缓存异常(需DNS-03/04)", CoverageStatus.Deferred },
+        { "L11", "正常VPN/虚拟网卡不误判", CoverageStatus.SafetyNegativeOnly },
+        { "L12", "VPN退出后遗留路由", CoverageStatus.Deferred },
+        { "L13", "认证门户", CoverageStatus.BehaviorCovered },
+        { "L14", "NCSI异常但HTTPS正常", CoverageStatus.BehaviorCovered },
+        { "L15", "单站故障", CoverageStatus.BehaviorCovered },
+        { "L16", "IPv4/IPv6分离测试", CoverageStatus.Deferred },
     };
 
     /// <summary>
@@ -159,12 +174,11 @@ public class Phase33SafetyTests
     /// </summary>
     [Theory]
     [MemberData(nameof(CoverageMatrix))]
-    public void CoverageMatrix_AllScenariosHaveStatus(string scenarioId, string description, string status)
+    public void CoverageMatrix_AllScenariosHaveStatus(string scenarioId, string description, CoverageStatus status)
     {
         Assert.False(string.IsNullOrEmpty(scenarioId));
         Assert.False(string.IsNullOrEmpty(description));
-        Assert.True(status.StartsWith("已覆盖") || status.StartsWith("延后"),
-            $"Unexpected status '{status}' for {scenarioId}");
+        Assert.True(Enum.IsDefined(status), $"Unexpected status '{status}' for {scenarioId}");
     }
 
     /// <summary>
@@ -236,6 +250,26 @@ public class Phase33SafetyTests
         Assert.DoesNotContain(findings, f => f.Id.Contains("ipv6") || f.Id.Contains("dual_stack"));
     }
 
+    /// <summary>
+    /// L06: 保护上下文（企业/域加入）下 PAC 不可达，Finding 被降级且不推荐修复动作。
+    /// 此为真实行为测试，不只是安全反例。
+    /// </summary>
+    [Fact]
+    public async Task L06_ProtectedContext_PacUnreachable_NoActionDowngraded()
+    {
+        var env = FakeNetworkEnvironment.Healthy("L06") with
+        {
+            System = SystemState.Normal with { IsManagedEnvironment = true },
+            Proxy = ProxyState.Direct with { PacEnabled = true, PacReachable = false },
+            Web = WebState.Healthy with { SystemProxyHttpsOk = false },
+        };
+        var findings = await RunDiagnosisAsync(env);
+        var pacFinding = findings.FirstOrDefault(f => f.Id == "finding.pac_unreachable");
+        Assert.NotNull(pacFinding);
+        Assert.Null(pacFinding!.RecommendedActionId);
+        Assert.True(pacFinding.ProtectedContextDowngrade);
+    }
+
     // === 可执行动作测试 ===
 
     /// <summary>
@@ -245,21 +279,6 @@ public class Phase33SafetyTests
     public void ExecutableRepairActions_EmptyInStage3()
     {
         Assert.Empty(BuiltinRuleRegistry.ExecutableRepairActions);
-    }
-
-    /// <summary>
-    /// 计划动作不等于可执行动作。
-    /// </summary>
-    [Fact]
-    public void PlannedActions_NotExecutable()
-    {
-        Assert.NotEmpty(BuiltinRuleRegistry.PlannedRepairActionIds);
-        // 所有计划动作都不在可执行集合中
-        foreach (var planned in BuiltinRuleRegistry.PlannedRepairActionIds)
-        {
-            Assert.False(BuiltinRuleRegistry.ExecutableRepairActions.Contains(planned),
-                $"Planned action '{planned}' should not be executable in stage 3");
-        }
     }
 
     // === 辅助方法 ===
