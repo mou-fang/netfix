@@ -77,39 +77,23 @@ public sealed class NcsiProbe : WindowsProbeBase
             evidence["ncsi_content_error"] = ex.GetType().Name;
         }
 
-        // 4. 综合判断
-        // 阶段 2.3 修正：WEB-01 不得把所有 NCSI 正文失败直接判成认证门户。
-        // - 正文匹配 + NLM 连接 = Pass
-        // - 重定向或明确登录页特征 = 记录 captive-portal 信号（Warning），但不单独判定认证门户
-        // - 正文不匹配、超时、目标不可达 = Skipped/Inconclusive
-        // - "NCSI 失败但 HTTPS 正常"由阶段 3 规则根据 WEB-01 + WEB-02 证据得出不一致结论
-        if (ncsiContentOk && nlmConnected)
+        // 4. 综合判断（调用生产纯函数 NcsiSemanticEvaluator）
+        var eval = NcsiSemanticEvaluator.Evaluate(
+            contentMatches: ncsiContentOk,
+            nlmConnected: nlmConnected,
+            redirected: ncsiRedirected,
+            contentError: evidence.ContainsKey("ncsi_content_error"));
+
+        if (eval.Signal is not null)
         {
-            return ProbeResult.Pass(this.Id, "probe.web.ncsi.ok",
-                evidence: evidence.AsReadOnly());
+            evidence["ncsi_signal"] = eval.Signal;
         }
 
-        if (ncsiRedirected)
-        {
-            // 重定向：记录 captive-portal 信号，但返回 Warning 供规则引擎判断
-            evidence["ncsi_signal"] = "captive_portal_redirect";
-            return new ProbeResult(
-                Id: this.Id,
-                Status: ProbeStatus.Warning,
-                Severity: ProbeSeverity.Medium,
-                SummaryKey: "probe.web.ncsi.captive_signal",
-                Evidence: evidence.AsReadOnly(),
-                Duration: TimeSpan.Zero,
-                StartedAt: DateTimeOffset.UtcNow);
-        }
-
-        // 正文不匹配、超时、目标不可达 -> Inconclusive（Skipped）
-        // 不由 WEB-01 单独声称断网或认证门户
         return new ProbeResult(
             Id: this.Id,
-            Status: ProbeStatus.Skipped,
-            Severity: ProbeSeverity.Info,
-            SummaryKey: "probe.web.ncsi.inconclusive",
+            Status: eval.Status,
+            Severity: eval.Severity,
+            SummaryKey: eval.SummaryKey,
             Evidence: evidence.AsReadOnly(),
             Duration: TimeSpan.Zero,
             StartedAt: DateTimeOffset.UtcNow);
@@ -371,7 +355,11 @@ public sealed class CaptivePortalProbe : WindowsProbeBase
 
     protected override async Task<ProbeResult> ExecuteCoreAsync(ProbeContext context, CancellationToken cancellationToken)
     {
-        var evidence = new Dictionary<string, object?>();
+        var evidence = new Dictionary<string, object?>
+        {
+            ["target_host"] = HealthTargetCatalog.GlobalPathTarget.Host,
+            ["target_category"] = HealthTargetCategory.GlobalServicePath.ToString(),
+        };
         var target = HealthTargetCatalog.GlobalPathTarget;
 
         var (handler, tlsRecord) = TlsValidationHelper.CreateDirectStrictHandler();
@@ -384,10 +372,8 @@ public sealed class CaptivePortalProbe : WindowsProbeBase
             var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
 
             tlsRecord.WriteTo(evidence);
-            evidence["target_host"] = target.Host;
             evidence["status_code"] = (int)response.StatusCode;
             evidence["final_url"] = response.RequestMessage?.RequestUri?.ToString() ?? string.Empty;
-            evidence["target_category"] = HealthTargetCategory.GlobalServicePath.ToString();
 
             if (response.StatusCode == HttpStatusCode.NoContent)
             {
@@ -406,9 +392,20 @@ public sealed class CaptivePortalProbe : WindowsProbeBase
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // 阶段 2.4 修正：调用 FallbackFromException 和 WriteTo
+            // Skipped/Inconclusive 时不得丢失 evidence
+            tlsRecord.FallbackFromException(ex);
+            tlsRecord.WriteTo(evidence);
             evidence["error"] = ex.GetType().Name;
-            // 全球服务路径目标失败不等于断网
-            return ProbeResult.Skip(this.Id, "probe.web.captive.skip");
+            // 全球服务路径目标失败不等于断网或认证门户
+            return new ProbeResult(
+                Id: this.Id,
+                Status: ProbeStatus.Skipped,
+                Severity: ProbeSeverity.Info,
+                SummaryKey: "probe.web.captive.skip",
+                Evidence: evidence.AsReadOnly(),
+                Duration: TimeSpan.Zero,
+                StartedAt: DateTimeOffset.UtcNow);
         }
     }
 }

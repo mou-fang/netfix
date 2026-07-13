@@ -112,10 +112,10 @@ public sealed class TargetProbe : WindowsProbeBase
             try
             {
                 // 明确 UseProxy=false：直连，不通过系统代理
-                using var handler = new HttpClientHandler { UseProxy = false };
-                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+                using var httpHandler = new HttpClientHandler { UseProxy = false };
+                using var client = new HttpClient(httpHandler) { Timeout = TimeSpan.FromSeconds(5) };
 
-                var url = $"http://{target.Host}:{target.Port}{target.PathAndQuery}";
+                var url = TargetUriBuilder.BuildRequestUrl(target);
                 var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 evidence["http_status"] = (int)response.StatusCode;
                 evidence["http_ok"] = true;
@@ -135,12 +135,12 @@ public sealed class TargetProbe : WindowsProbeBase
 
         // HTTPS 模式：执行 TLS + HTTP（直连，UseProxy=false）
         evidence["tls_performed"] = true;
+        var (handler, tlsRecord) = TlsValidationHelper.CreateDirectStrictHandler();
         try
         {
-            var (handler, tlsRecord) = TlsValidationHelper.CreateDirectStrictHandler();
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
-            var url = $"https://{target.Host}:{target.Port}{target.PathAndQuery}";
+            var url = TargetUriBuilder.BuildRequestUrl(target);
             var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
             tlsRecord.WriteTo(evidence);
             evidence["http_status"] = (int)response.StatusCode;
@@ -152,17 +152,21 @@ public sealed class TargetProbe : WindowsProbeBase
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // 分类 TLS 错误
-            var tlsClass = TlsErrorClassification.ClassifyException(ex);
-            evidence["tls_error_category"] = tlsClass.ErrorCategory;
-            evidence["tls_error_detail"] = tlsClass.Detail;
-            evidence["tls_ok"] = false;
+            // 阶段 2.4 修正：优先保留回调取得的准确分类
+            // 只有 record 为 NotChecked 时才回退到 ClassifyException
+            // 统一使用 tls_valid，不再使用 tls_ok
+            tlsRecord.FallbackFromException(ex);
+            tlsRecord.WriteTo(evidence);
             evidence["http_ok"] = false;
             evidence["https_error"] = ex.GetType().Name;
 
             // TCP 成功但 HTTPS 失败 = TLS 层问题
             return ProbeResult.Fail(this.Id, "probe.target.tls_fail",
                 evidence: evidence.AsReadOnly(), severity: ProbeSeverity.Medium);
+        }
+        finally
+        {
+            handler.Dispose();
         }
     }
 }

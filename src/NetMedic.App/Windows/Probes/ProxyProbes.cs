@@ -40,8 +40,10 @@ public sealed class WininetProxyProbe : WindowsProbeBase
 
         bool proxyEnabled = proxyEnable != 0;
         evidence["proxy_enabled"] = proxyEnabled;
-        evidence["proxy_server"] = proxyServer ?? string.Empty;
-        evidence["auto_config_url"] = autoConfigUrl ?? string.Empty;
+        // 阶段 2.4 修正：proxy_server 和 auto_config_url 必须经过生产脱敏函数
+        // 禁止把原始 AutoConfigURL 或可能含凭据的 proxy_server 写入 evidence
+        evidence["proxy_server"] = UrlSanitizer.SanitizeProxyServer(proxyServer);
+        evidence["auto_config_url"] = UrlSanitizer.SanitizeUrl(autoConfigUrl);
 
         // PRX-01 只读取配置，不检测端口
         // 解析代理地址用于记录（不连接）
@@ -128,7 +130,8 @@ public sealed class WinhttpProxyProbe : WindowsProbeBase
 
             evidence["winhttp_access_type"] = config.dwAccessType;
             evidence["winhttp_has_proxy"] = hasProxy;
-            evidence["winhttp_proxy"] = proxyString ?? string.Empty;
+            // 阶段 2.4 修正：代理地址可能包含凭据，使用共享脱敏函数
+            evidence["winhttp_proxy"] = UrlSanitizer.SanitizeProxyServer(proxyString);
             evidence["winhttp_bypass"] = bypassString ?? string.Empty;
 
             if (!hasProxy)
@@ -210,7 +213,7 @@ public sealed class PacProxyProbe : WindowsProbeBase
         bool pacConfigured = !string.IsNullOrWhiteSpace(autoConfigUrl);
 
         evidence["pac_configured"] = pacConfigured;
-        evidence["pac_url"] = pacConfigured ? MaskUrl(autoConfigUrl) : string.Empty;
+        evidence["pac_url"] = pacConfigured ? UrlSanitizer.SanitizeUrl(autoConfigUrl) : string.Empty;
 
         if (!pacConfigured)
         {
@@ -325,35 +328,6 @@ public sealed class PacProxyProbe : WindowsProbeBase
         return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
     }
 
-    /// <summary>
-    /// 脱敏 URL：移除 userinfo、query、fragment。
-    /// 不记录代理密码或 URL token。
-    /// 对应任务书 §9.3 报告脱敏 + 阶段 2.3 修正。
-    /// </summary>
-    private static string MaskUrl(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return string.Empty;
-        }
-
-        try
-        {
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            {
-                // 不是有效 URI，只保留 scheme://host:port 部分
-                return "[invalid_url]";
-            }
-
-            // 重建 URL，只保留 scheme://host:port/path，移除 userinfo、query、fragment
-            var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
-            return $"{uri.Scheme}://{uri.Host}{port}{uri.AbsolutePath}";
-        }
-        catch
-        {
-            return "[mask_error]";
-        }
-    }
 }
 
 /// <summary>
