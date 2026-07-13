@@ -84,8 +84,12 @@ public class WindowsProbeVerificationTests
         Assert.Equal("WEB-02", result.Id);
         // 必须标记 use_proxy = false
         Assert.Equal(false, result.Evidence["use_proxy"]);
+        // 必须标记 connection_path = direct
+        Assert.Equal("direct", result.Evidence["connection_path"]?.ToString());
         // 必须标记 request_made = true（证明实际发出了请求）
         Assert.Equal(true, result.Evidence["request_made"]);
+        // 有 TLS 证据
+        Assert.True(result.Evidence.ContainsKey("tls_valid") || result.Evidence.ContainsKey("tls_error_category"));
     }
 
     [IntegrationFact]

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -19,7 +19,16 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- net10.0: 只引用 Core（跨平台单元测试） -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <ProjectReference Include="..\..\src\NetMedic.Core\NetMedic.Core.csproj" />
+    <!-- 排除 Windows 专属测试文件 -->
+    <Compile Remove="WindowsProbeVerificationTests.cs" />
+    <Compile Remove="IntegrationTestAttributes.cs" />
+  </ItemGroup>
+
+  <!-- net10.0-windows: 引用 Core + App（含 Windows 集成测试） -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <ProjectReference Include="..\..\src\NetMedic.Core\NetMedic.Core.csproj" />
     <ProjectReference Include="..\..\src\NetMedic.App\NetMedic.App.csproj" />
   </ItemGroup>

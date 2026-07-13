@@ -35,11 +35,19 @@ public sealed class SystemContextProbe : WindowsProbeBase
         evidence["is_domain_joined"] = isDomainJoined;
         evidence["join_status"] = joinStatus;
 
-        // 判定：RDP 或域加入 -> 保护模式信号
+        // 判定：RDP 或域加入是保护上下文信号，不是网络故障
+        // SYS-01 返回 Warning（保护模式）而非 Failed（网络故障）
+        // 对应阶段 2.2 修正：域加入和 RDP 不应返回网络 Failed
         if (isRdp || isDomainJoined)
         {
-            return Task.FromResult(ProbeResult.Fail(this.Id, "probe.sys.managed",
-                evidence: evidence.AsReadOnly(), severity: ProbeSeverity.Medium));
+            return Task.FromResult(new ProbeResult(
+                Id: this.Id,
+                Status: ProbeStatus.Warning,
+                Severity: ProbeSeverity.Medium,
+                SummaryKey: "probe.sys.protected_context",
+                Evidence: evidence.AsReadOnly(),
+                Duration: TimeSpan.Zero,
+                StartedAt: DateTimeOffset.UtcNow));
         }
 
         return Task.FromResult(ProbeResult.Pass(this.Id, "probe.sys.ok",

@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
-  # Linux: 只构建和测试跨平台的 Core
+  # Linux: 只构建和测试跨平台的 Core + net10.0 测试
   linux-core:
     runs-on: ubuntu-latest
     steps:
@@ -18,10 +18,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build Core
         run: dotnet build src/NetMedic.Core/NetMedic.Core.csproj --configuration Debug
-      - name: Test Core
-        run: dotnet test tests/NetMedic.Tests/NetMedic.Tests.csproj --configuration Debug --no-build
+      - name: Build Tests (net10.0)
+        run: dotnet build tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0 --configuration Debug
+      - name: Test (net10.0, no integration, no public network)
+        run: dotnet test tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0 --configuration Debug --no-build
 
-  # Windows: 构建整个 solution（含 WPF）
+  # Windows: 构建整个 solution + net10.0-windows 测试
   windows-full:
     runs-on: windows-latest
     steps:
@@ -32,7 +34,9 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Format check
         run: dotnet format NetMedic.slnx --verify-no-changes --verbosity minimal
-      - name: Build
+      - name: Build solution
         run: dotnet build NetMedic.slnx --configuration Debug
-      - name: Test
-        run: dotnet test NetMedic.slnx --configuration Debug --no-build
+      - name: Test (net10.0, no integration)
+        run: dotnet test tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0 --configuration Debug --no-build
+      - name: Test (net10.0-windows, no integration)
+        run: dotnet test tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0-windows --configuration Debug --no-build

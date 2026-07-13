@@ -98,6 +98,10 @@ public sealed class TargetProbe : WindowsProbeBase
         }
 
         // 阶段 3: HTTP/HTTPS 请求
+        // 修正（阶段 2.2）：如果 DNS/TCP/TLS 检查的是直连源站，
+        // HTTP 阶段也必须 UseProxy=false，不混用直连 TCP + 系统代理 HTTP
+        evidence["connection_path"] = "direct";
+
         // http: 不执行 TLS，直接 HTTP
         // https: 执行 TLS，然后 HTTP
         if (!target.IsTls)
@@ -106,6 +110,7 @@ public sealed class TargetProbe : WindowsProbeBase
             evidence["tls_performed"] = false;
             try
             {
+                // 明确 UseProxy=false：直连，不通过系统代理
                 using var handler = new HttpClientHandler { UseProxy = false };
                 using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
@@ -113,7 +118,7 @@ public sealed class TargetProbe : WindowsProbeBase
                 var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 evidence["http_status"] = (int)response.StatusCode;
                 evidence["http_ok"] = true;
-                evidence["phase"] = "HTTP (no TLS)";
+                evidence["phase"] = "HTTP (no TLS, direct)";
 
                 return ProbeResult.Pass(this.Id, "probe.target.ok",
                     evidence: evidence.AsReadOnly());
@@ -127,38 +132,30 @@ public sealed class TargetProbe : WindowsProbeBase
             }
         }
 
-        // HTTPS 模式：执行 TLS + HTTP
+        // HTTPS 模式：执行 TLS + HTTP（直连，UseProxy=false）
         evidence["tls_performed"] = true;
         try
         {
-            using var handler = new HttpClientHandler
-            {
-                UseProxy = false,
-                ServerCertificateCustomValidationCallback = (_, cert, _, errors) =>
-                {
-                    if (errors != SslPolicyErrors.None)
-                    {
-                        evidence["tls_cert_errors"] = errors.ToString();
-                    }
-
-                    return true; // 记录错误但继续以获取 HTTP 状态
-                },
-            };
+            var (handler, tlsRecord) = TlsValidationHelper.CreateDirectStrictHandler();
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
             var url = $"https://{target.Host}:{target.Port}/";
             var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            tlsRecord.WriteTo(evidence);
             evidence["http_status"] = (int)response.StatusCode;
-            evidence["tls_ok"] = true;
             evidence["http_ok"] = true;
-            evidence["phase"] = "TLS+HTTP";
+            evidence["phase"] = "TLS+HTTP (direct)";
 
             return ProbeResult.Pass(this.Id, "probe.target.ok",
                 evidence: evidence.AsReadOnly());
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            evidence["tls_ok"] = ex is not HttpRequestException;
+            // 分类 TLS 错误
+            var tlsClass = TlsErrorClassification.ClassifyException(ex);
+            evidence["tls_error_category"] = tlsClass.ErrorCategory;
+            evidence["tls_error_detail"] = tlsClass.Detail;
+            evidence["tls_ok"] = false;
             evidence["http_ok"] = false;
             evidence["https_error"] = ex.GetType().Name;
 
