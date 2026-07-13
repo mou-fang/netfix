@@ -6,8 +6,8 @@ using NetMedic.App.Resources;
 using NetMedic.App.Windows;
 using NetMedic.App.Windows.Probes;
 using NetMedic.Core.Diagnostics;
+using NetMedic.Core.Diagnostics.Rules;
 using NetMedic.Core.Repairs;
-using NetMedic.Core.Testing;
 
 namespace NetMedic.App;
 
@@ -79,6 +79,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isTechnicalDetailsVisible;
+
+    /// <summary>
+    /// 是否有可用的引导信息。仅当首选 Finding 有推荐动作时为 true。
+    /// ViewGuidance 按钮在此为 false 时隐藏。
+    /// </summary>
+    public bool HasGuidance => this.PrimaryFinding?.RecommendedActionId is not null;
+
+    partial void OnPrimaryFindingChanged(Finding? value)
+    {
+        this.OnPropertyChanged(nameof(this.HasGuidance));
+    }
 
     public ObservableCollection<Finding> allFindings { get; } = [];
 
@@ -155,7 +166,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             // 评估规则
             var snapshot = DiagnosticSnapshot.From(result.Session);
-            var registry = ScenarioFixtures.BuildRuleRegistry();
+            var registry = BuiltinRuleRegistry.CreateDefault();
             var findings = registry.EvaluateAll(snapshot);
 
             this.allFindings.Clear();
@@ -191,19 +202,29 @@ public sealed partial class MainViewModel : ObservableObject
         this.SelectedRepairAction = null;
     }
 
+    /// <summary>查看引导：展开技术详情，不返回首页。</summary>
+    [RelayCommand]
+    private void ViewGuidance()
+    {
+        this.IsTechnicalDetailsVisible = true;
+    }
+
     /// <summary>安全修复：进入修复确认页。</summary>
     [RelayCommand]
     private void RequestRepair()
     {
-        if (this.PrimaryFinding?.RecommendedActionId is { } actionId)
+        var actionId = this.PrimaryFinding?.RecommendedActionId;
+        if (actionId is null || !BuiltinRuleRegistry.SupportedRepairActions.Contains(actionId))
         {
-            this.SelectedRepairAction = actionId switch
-            {
-                "FIX-PRX-01" => RepairActionDescriptor.DisableDeadLocalProxy,
-                "FIX-DNS-01" => RepairActionDescriptor.FlushDnsCache,
-                _ => null,
-            };
+            return;
         }
+
+        this.SelectedRepairAction = actionId switch
+        {
+            "FIX-PRX-01" => RepairActionDescriptor.DisableDeadLocalProxy,
+            "FIX-DNS-01" => RepairActionDescriptor.FlushDnsCache,
+            _ => null,
+        };
 
         if (this.SelectedRepairAction is not null)
         {

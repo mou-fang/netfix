@@ -95,13 +95,14 @@ public class ScenarioTests
 
     /// <summary>
     /// L15 单站故障：不应推荐全局重置（无推荐动作）。
+    /// TargetUnreachableRule 命中（合并 SingleSiteIssue 和 ExternalService）。
     /// </summary>
     [Fact]
     public async Task L15_SingleSiteIssue_NoGlobalResetRecommended()
     {
         var findings = await RunDiagnosisAsync(ScenarioFixtures.L15_SingleSiteIssue().Environment);
         var primary = findings.First();
-        Assert.Equal("finding.external_service", primary.Id);
+        Assert.Equal("finding.target_unreachable", primary.Id);
         Assert.Null(primary.RecommendedActionId);
     }
 

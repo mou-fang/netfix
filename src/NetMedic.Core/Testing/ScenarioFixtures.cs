@@ -1,5 +1,5 @@
 using NetMedic.Core.Diagnostics;
-using NetMedic.Core.Testing.Rules;
+using NetMedic.Core.Diagnostics.Rules;
 
 namespace NetMedic.Core.Testing;
 
@@ -80,8 +80,7 @@ public static class ScenarioFixtures
     /// <summary>
     /// L15: 只有一个网站失败。预期：不执行全局重置。
     /// 健康目标正常，只有用户指定目标失败。
-    /// ExternalServiceRule 和 SingleSiteIssueRule 都会命中，
-    /// external_service 按字母序排前面，作为首选 Finding。
+    /// TargetUnreachableRule 命中（合并 SingleSiteIssue 和 ExternalService）。
     /// </summary>
     public static ScenarioFixture L15_SingleSiteIssue() => new(
         Name: "L15_SingleSiteIssue",
@@ -93,7 +92,7 @@ public static class ScenarioFixtures
                 TargetSiteConnects = false,
             },
         },
-        ExpectedFindingId: "finding.external_service",
+        ExpectedFindingId: "finding.target_unreachable",
         ExpectedConfidence: Confidence.High,
         ExpectedRecommendedActionId: null);
 
@@ -105,27 +104,26 @@ public static class ScenarioFixtures
         L09_DnsFailure(),
         L14_NcsiMismatch(),
         L15_SingleSiteIssue(),
-        L20_WinHttpProxyMismatch(),
+        L20_WinHttpProxyConfig(),
         L21_PacUnreachable(),
         L22_ApipaDhcp(),
         L23_CaptivePortal(),
         L24_ExternalService(),
     ];
 
-    /// <summary>L20: WinHTTP 代理残留。WinHTTP 代理不可达，直连成功。</summary>
-    public static ScenarioFixture L20_WinHttpProxyMismatch() => new(
-        Name: "L20_WinHttpProxyMismatch",
-        Environment: FakeNetworkEnvironment.Healthy("L20_WinHttpProxyMismatch") with
+    /// <summary>L20: WinHTTP 自定义代理配置。信息性，Confidence=Medium，无修复动作。</summary>
+    public static ScenarioFixture L20_WinHttpProxyConfig() => new(
+        Name: "L20_WinHttpProxyConfig",
+        Environment: FakeNetworkEnvironment.Healthy("L20_WinHttpProxyConfig") with
         {
             Proxy = ProxyState.Direct with
             {
                 WinhttpEnabled = true,
-                WinhttpReachable = false,
             },
         },
-        ExpectedFindingId: "finding.winhttp_proxy_mismatch",
-        ExpectedConfidence: Confidence.High,
-        ExpectedRecommendedActionId: "FIX-PRX-03");
+        ExpectedFindingId: "finding.winhttp_proxy_config",
+        ExpectedConfidence: Confidence.Medium,
+        ExpectedRecommendedActionId: null);
 
     /// <summary>L21: PAC 不可达。家庭网络，非企业环境。</summary>
     public static ScenarioFixture L21_PacUnreachable() => new(
@@ -194,22 +192,12 @@ public static class ScenarioFixtures
                 TargetSiteConnects = false,
             },
         },
-        ExpectedFindingId: "finding.external_service",
+        ExpectedFindingId: "finding.target_unreachable",
         ExpectedConfidence: Confidence.High,
         ExpectedRecommendedActionId: null);
 
-    /// <summary>构建包含所有内置规则的注册表。</summary>
-    public static RuleRegistry BuildRuleRegistry() => new RuleRegistry()
-        .Add(new DeadLocalProxyRule())
-        .Add(new WinHttpProxyMismatchRule())
-        .Add(new PacUnreachableRule())
-        .Add(new ApipaDhcpRule())
-        .Add(new DnsFailureRule())
-        .Add(new NcsiMismatchRule())
-        .Add(new CaptivePortalRule())
-        .Add(new SingleSiteIssueRule())
-        .Add(new ExternalServiceRule())
-        .Add(new NetworkHealthyRule());
+    /// <summary>构建包含所有内置规则的注册表（委托生产入口）。</summary>
+    public static RuleRegistry BuildRuleRegistry() => BuiltinRuleRegistry.CreateDefault();
 }
 
 /// <summary>

@@ -34,12 +34,27 @@ public static class FakeProbeSet
             {
                 if (e.Adapter.HasApiPAAddress && !e.Adapter.HasValidIpv4)
                 {
-                    return ProbeResult.Fail("NET-02", "probe.net.ip.apipa", severity: ProbeSeverity.High);
+                    return ProbeResult.Fail("NET-02", "probe.net.ip.apipa",
+                        evidence: new Dictionary<string, object?>
+                        {
+                            ["has_apipa"] = true,
+                            ["has_valid_ipv4"] = false,
+                        }.AsReadOnly(),
+                        severity: ProbeSeverity.High);
                 }
 
-                return e.Adapter.HasValidIpv4
-                    ? ProbeResult.Pass("NET-02", "probe.net.ip.ok")
-                    : ProbeResult.Fail("NET-02", "probe.net.ip.none", severity: ProbeSeverity.High);
+                if (e.Adapter.HasValidIpv4)
+                {
+                    return ProbeResult.Pass("NET-02", "probe.net.ip.ok");
+                }
+
+                return ProbeResult.Fail("NET-02", "probe.net.ip.none",
+                    evidence: new Dictionary<string, object?>
+                    {
+                        ["has_apipa"] = false,
+                        ["has_valid_ipv4"] = false,
+                    }.AsReadOnly(),
+                    severity: ProbeSeverity.High);
             }),
 
             // NET-03: 默认网关与路由
@@ -51,40 +66,63 @@ public static class FakeProbeSet
             // DNS-02: 系统解析
             MakeBoolProbe("DNS-02", "probe.dns.resolve", e => e.Dns.SystemResolves, failSeverity: ProbeSeverity.High),
 
-            // PRX-01: WinINET 代理
+            // PRX-01: WinINET 代理（只读配置，不检测端口）
             new FakeProbe("PRX-01", e =>
             {
                 if (!e.Proxy.WininetEnabled)
                 {
-                    return ProbeResult.Pass("PRX-01", "probe.prx.wininet.off");
-                }
-
-                if (e.Proxy.WininetIsLoopback && !e.Proxy.WininetPortListening)
-                {
-                    return ProbeResult.Fail("PRX-01", "probe.prx.wininet.dead_local",
+                    return ProbeResult.Pass("PRX-01", "probe.prx.wininet.off",
                         evidence: new Dictionary<string, object?>
                         {
-                            ["proxy_address"] = e.Proxy.WininetAddress ?? "unknown",
-                            ["is_loopback"] = true,
-                            ["port_listening"] = false,
-                        }.AsReadOnly(),
-                        severity: ProbeSeverity.High);
+                            ["proxy_enabled"] = false,
+                        }.AsReadOnly());
                 }
 
-                return ProbeResult.Pass("PRX-01", "probe.prx.wininet.active");
+                // 代理启用 -> Passed。PRX-01 只读配置，端口检测由 PRX-04 负责。
+                var addr = e.Proxy.WininetAddress ?? "unknown";
+                string? host = null;
+                int? port = null;
+                if (!string.IsNullOrEmpty(addr))
+                {
+                    var colon = addr.LastIndexOf(':');
+                    if (colon > 0 && int.TryParse(addr[(colon + 1)..], out var p))
+                    {
+                        host = addr[..colon];
+                        port = p;
+                    }
+                    else
+                    {
+                        host = addr;
+                    }
+                }
+
+                return ProbeResult.Pass("PRX-01", "probe.prx.wininet.active",
+                    evidence: new Dictionary<string, object?>
+                    {
+                        ["proxy_enabled"] = true,
+                        ["is_loopback"] = e.Proxy.WininetIsLoopback,
+                        ["proxy_host"] = host,
+                        ["proxy_port"] = port,
+                    }.AsReadOnly());
             }),
 
-            // PRX-02: WinHTTP 代理
+            // PRX-02: WinHTTP 代理（只读配置，无可达性探针）
             new FakeProbe("PRX-02", e =>
             {
                 if (!e.Proxy.WinhttpEnabled)
                 {
-                    return ProbeResult.Pass("PRX-02", "probe.prx.winhttp.direct");
+                    return ProbeResult.Pass("PRX-02", "probe.prx.winhttp.direct",
+                        evidence: new Dictionary<string, object?>
+                        {
+                            ["winhttp_has_proxy"] = false,
+                        }.AsReadOnly());
                 }
 
-                return e.Proxy.WinhttpReachable
-                    ? ProbeResult.Pass("PRX-02", "probe.prx.winhttp.custom")
-                    : ProbeResult.Fail("PRX-02", "probe.prx.winhttp.unreachable", severity: ProbeSeverity.High);
+                return ProbeResult.Pass("PRX-02", "probe.prx.winhttp.custom",
+                    evidence: new Dictionary<string, object?>
+                    {
+                        ["winhttp_has_proxy"] = true,
+                    }.AsReadOnly());
             }),
 
             // PRX-03: PAC
@@ -100,7 +138,7 @@ public static class FakeProbeSet
                     : ProbeResult.Fail("PRX-03", "probe.prx.pac.unreachable", severity: ProbeSeverity.Medium);
             }),
 
-            // PRX-04: 本地代理端口（简化：与 PRX-01 一致）
+            // PRX-04: 本地代理端口（负责端口检测）
             new FakeProbe("PRX-04", e =>
             {
                 if (!e.Proxy.WininetEnabled)
@@ -110,7 +148,13 @@ public static class FakeProbeSet
 
                 if (e.Proxy.WininetIsLoopback && !e.Proxy.WininetPortListening)
                 {
-                    return ProbeResult.Fail("PRX-04", "probe.prx.port.dead", severity: ProbeSeverity.High);
+                    return ProbeResult.Fail("PRX-04", "probe.prx.port.dead",
+                        evidence: new Dictionary<string, object?>
+                        {
+                            ["is_loopback"] = true,
+                            ["port_listening"] = false,
+                        }.AsReadOnly(),
+                        severity: ProbeSeverity.High);
                 }
 
                 return ProbeResult.Skip("PRX-04", "probe.prx.port.not_loopback");
