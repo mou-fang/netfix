@@ -18,12 +18,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build Core
         run: dotnet build src/NetMedic.Core/NetMedic.Core.csproj --configuration Debug
-      - name: Build Tests (net10.0)
-        run: dotnet build tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0 --configuration Debug
+      - name: Build Tests (net10.0 only)
+        run: dotnet build tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0 --configuration Debug -p:EnableWindowsTargeting=true
       - name: Test (net10.0, no integration, no public network)
         run: dotnet test tests/NetMedic.Tests/NetMedic.Tests.csproj -f net10.0 --configuration Debug --no-build
 
-  # Windows: 构建整个 solution + net10.0-windows 测试
+  # Windows: 构建整个 solution + 两个 TFM 测试
   windows-full:
     runs-on: windows-latest
     steps:
