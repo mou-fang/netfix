@@ -49,6 +49,7 @@ public sealed class TargetProbe : WindowsProbeBase
         evidence["target_host"] = target.Host;
         evidence["target_port"] = target.Port;
         evidence["is_tls"] = target.IsTls;
+        evidence["path_and_query"] = target.PathAndQuery;
 
         // 阶段 1: DNS 解析
         IPAddress[] addresses;
@@ -114,7 +115,7 @@ public sealed class TargetProbe : WindowsProbeBase
                 using var handler = new HttpClientHandler { UseProxy = false };
                 using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
-                var url = $"http://{target.Host}:{target.Port}/";
+                var url = $"http://{target.Host}:{target.Port}{target.PathAndQuery}";
                 var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 evidence["http_status"] = (int)response.StatusCode;
                 evidence["http_ok"] = true;
@@ -139,7 +140,7 @@ public sealed class TargetProbe : WindowsProbeBase
             var (handler, tlsRecord) = TlsValidationHelper.CreateDirectStrictHandler();
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
-            var url = $"https://{target.Host}:{target.Port}/";
+            var url = $"https://{target.Host}:{target.Port}{target.PathAndQuery}";
             var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
             tlsRecord.WriteTo(evidence);
             evidence["http_status"] = (int)response.StatusCode;

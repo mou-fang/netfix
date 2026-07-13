@@ -109,32 +109,59 @@ public sealed class WinhttpProxyProbe : WindowsProbeBase
         if (result == 0)
         {
             int error = Marshal.GetLastWin32Error();
+            // 即使失败也要释放可能分配的缓冲区
+            FreeWinHttpStrings(config.lpszProxy, config.lpszProxyBypass);
             evidence["winhttp_api_error"] = error;
             return Task.FromResult(ProbeResult.Err(this.Id, "probe.prx.winhttp",
                 new ProbeError("WINHTTP_API_FAILED", $"WinHttpGetDefaultProxyConfiguration failed: {error}")));
         }
 
-        bool hasProxy = config.dwAccessType == 3;
-        string? proxyString = config.lpszProxy != IntPtr.Zero
-            ? Marshal.PtrToStringUni(config.lpszProxy)
-            : null;
-        string? bypassString = config.lpszProxyBypass != IntPtr.Zero
-            ? Marshal.PtrToStringUni(config.lpszProxyBypass)
-            : null;
-
-        evidence["winhttp_access_type"] = config.dwAccessType;
-        evidence["winhttp_has_proxy"] = hasProxy;
-        evidence["winhttp_proxy"] = proxyString ?? string.Empty;
-        evidence["winhttp_bypass"] = bypassString ?? string.Empty;
-
-        if (!hasProxy)
+        try
         {
-            return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.winhttp.direct",
+            bool hasProxy = config.dwAccessType == 3;
+            string? proxyString = config.lpszProxy != IntPtr.Zero
+                ? Marshal.PtrToStringUni(config.lpszProxy)
+                : null;
+            string? bypassString = config.lpszProxyBypass != IntPtr.Zero
+                ? Marshal.PtrToStringUni(config.lpszProxyBypass)
+                : null;
+
+            evidence["winhttp_access_type"] = config.dwAccessType;
+            evidence["winhttp_has_proxy"] = hasProxy;
+            evidence["winhttp_proxy"] = proxyString ?? string.Empty;
+            evidence["winhttp_bypass"] = bypassString ?? string.Empty;
+
+            if (!hasProxy)
+            {
+                return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.winhttp.direct",
+                    evidence: evidence.AsReadOnly()));
+            }
+
+            return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.winhttp.custom",
                 evidence: evidence.AsReadOnly()));
         }
+        finally
+        {
+            // 成功和异常路径都必须释放，防止内存泄漏
+            FreeWinHttpStrings(config.lpszProxy, config.lpszProxyBypass);
+        }
+    }
 
-        return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.winhttp.custom",
-            evidence: evidence.AsReadOnly()));
+    /// <summary>
+    /// 释放 WinHttpGetDefaultProxyConfiguration 返回的字符串缓冲区。
+    /// WinHTTP 使用 GlobalAlloc 分配，必须用 GlobalFree 释放。
+    /// </summary>
+    private static void FreeWinHttpStrings(IntPtr lpszProxy, IntPtr lpszProxyBypass)
+    {
+        if (lpszProxy != IntPtr.Zero)
+        {
+            GlobalFree(lpszProxy);
+        }
+
+        if (lpszProxyBypass != IntPtr.Zero)
+        {
+            GlobalFree(lpszProxyBypass);
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -147,6 +174,9 @@ public sealed class WinhttpProxyProbe : WindowsProbeBase
 
     [DllImport("winhttp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int WinHttpGetDefaultProxyConfiguration(ref WinHttpProxyInfo pProxyInfo);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GlobalFree(IntPtr hMem);
 }
 
 /// <summary>
@@ -295,6 +325,11 @@ public sealed class PacProxyProbe : WindowsProbeBase
         return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
     }
 
+    /// <summary>
+    /// 脱敏 URL：移除 userinfo、query、fragment。
+    /// 不记录代理密码或 URL token。
+    /// 对应任务书 §9.3 报告脱敏 + 阶段 2.3 修正。
+    /// </summary>
     private static string MaskUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -302,16 +337,22 @@ public sealed class PacProxyProbe : WindowsProbeBase
             return string.Empty;
         }
 
-        if (url.Contains("://") && url.Contains('@'))
+        try
         {
-            int schemeEnd = url.IndexOf("://", StringComparison.Ordinal) + 3;
-            var scheme = url[..schemeEnd];
-            int atPos = url.IndexOf('@', StringComparison.Ordinal);
-            var hostPart = url[(atPos + 1)..];
-            return scheme + "***@" + hostPart;
-        }
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                // 不是有效 URI，只保留 scheme://host:port 部分
+                return "[invalid_url]";
+            }
 
-        return url;
+            // 重建 URL，只保留 scheme://host:port/path，移除 userinfo、query、fragment
+            var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
+            return $"{uri.Scheme}://{uri.Host}{port}{uri.AbsolutePath}";
+        }
+        catch
+        {
+            return "[mask_error]";
+        }
     }
 }
 

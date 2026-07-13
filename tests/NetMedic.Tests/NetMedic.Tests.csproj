@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\NetMedic.Core\NetMedic.Core.csproj" />
     <!-- 排除 Windows 专属测试文件 -->
     <Compile Remove="WindowsProbeVerificationTests.cs" />
+    <Compile Remove="WindowsTlsTests.cs" />
     <Compile Remove="IntegrationTestAttributes.cs" />
   </ItemGroup>
 

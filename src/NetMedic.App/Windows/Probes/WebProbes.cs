@@ -77,21 +77,34 @@ public sealed class NcsiProbe : WindowsProbeBase
             evidence["ncsi_content_error"] = ex.GetType().Name;
         }
 
-        // 4. 综合判断（仅辅助信号，不单独判定断网）
+        // 4. 综合判断
+        // 阶段 2.3 修正：WEB-01 不得把所有 NCSI 正文失败直接判成认证门户。
+        // - 正文匹配 + NLM 连接 = Pass
+        // - 重定向或明确登录页特征 = 记录 captive-portal 信号（Warning），但不单独判定认证门户
+        // - 正文不匹配、超时、目标不可达 = Skipped/Inconclusive
+        // - "NCSI 失败但 HTTPS 正常"由阶段 3 规则根据 WEB-01 + WEB-02 证据得出不一致结论
         if (ncsiContentOk && nlmConnected)
         {
             return ProbeResult.Pass(this.Id, "probe.web.ncsi.ok",
                 evidence: evidence.AsReadOnly());
         }
 
-        if (ncsiRedirected || !ncsiContentOk)
+        if (ncsiRedirected)
         {
-            // 可能被认证门户拦截
-            return ProbeResult.Fail(this.Id, "probe.web.ncsi.captive",
-                evidence: evidence.AsReadOnly(), severity: ProbeSeverity.High);
+            // 重定向：记录 captive-portal 信号，但返回 Warning 供规则引擎判断
+            evidence["ncsi_signal"] = "captive_portal_redirect";
+            return new ProbeResult(
+                Id: this.Id,
+                Status: ProbeStatus.Warning,
+                Severity: ProbeSeverity.Medium,
+                SummaryKey: "probe.web.ncsi.captive_signal",
+                Evidence: evidence.AsReadOnly(),
+                Duration: TimeSpan.Zero,
+                StartedAt: DateTimeOffset.UtcNow);
         }
 
-        // NCSI 不可用，但仅作为辅助信号
+        // 正文不匹配、超时、目标不可达 -> Inconclusive（Skipped）
+        // 不由 WEB-01 单独声称断网或认证门户
         return new ProbeResult(
             Id: this.Id,
             Status: ProbeStatus.Skipped,
@@ -200,19 +213,17 @@ public sealed class DirectHttpsProbe : WindowsProbeBase
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             evidence["request_made"] = true;
-            // 分类 TLS 错误
-            var tlsClass = TlsErrorClassification.ClassifyException(ex);
-            evidence["tls_error_category"] = tlsClass.ErrorCategory;
-            evidence["tls_error_detail"] = tlsClass.Detail;
-            evidence["tls_valid"] = false;
+            // 优先保留 TlsErrorRecord 中回调取得的准确分类
+            // 只有 record 为 NotChecked 时才回退到 ClassifyException
+            tlsRecord.FallbackFromException(ex);
+            tlsRecord.WriteTo(evidence);
             tlsError = true;
-            perTargetResults.Add($"{target.Host}: {tlsClass.ErrorCategory} - {ex.GetType().Name}");
+            perTargetResults.Add($"{target.Host}: {tlsRecord.ErrorCategory} - {ex.GetType().Name}");
         }
 
         evidence["target_results"] = perTargetResults;
         evidence["success_count"] = successCount;
 
-        // 有 TLS 错误时不得标记为 Pass
         if (tlsError)
         {
             return ProbeResult.Fail(this.Id, "probe.web.direct.tls_error",
@@ -307,12 +318,10 @@ public sealed class SystemProxyHttpsProbe : WindowsProbeBase
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var tlsClass = TlsErrorClassification.ClassifyException(ex);
-            evidence["tls_error_category"] = tlsClass.ErrorCategory;
-            evidence["tls_error_detail"] = tlsClass.Detail;
-            evidence["tls_valid"] = false;
+            tlsRecord.FallbackFromException(ex);
+            tlsRecord.WriteTo(evidence);
             tlsError = true;
-            perTargetResults.Add($"{target.Host}: {tlsClass.ErrorCategory} - {ex.GetType().Name}");
+            perTargetResults.Add($"{target.Host}: {tlsRecord.ErrorCategory} - {ex.GetType().Name}");
         }
 
         evidence["target_results"] = perTargetResults;

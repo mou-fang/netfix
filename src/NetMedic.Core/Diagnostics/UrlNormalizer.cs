@@ -1,13 +1,14 @@
 namespace NetMedic.Core.Diagnostics;
 
 /// <summary>
-/// URL 安全规范化结果。包含方案、主机、端口。
+/// URL 安全规范化结果。包含方案、主机、端口、路径。
 /// </summary>
 public sealed record NormalizedTarget(
     string Scheme,
     string Host,
     int Port,
-    bool IsTls)
+    bool IsTls,
+    string PathAndQuery)
 {
     /// <summary>默认端口（http=80, https=443）。</summary>
     public int DefaultPort => Scheme == "https" ? 443 : 80;
@@ -61,6 +62,7 @@ public static class UrlNormalizer
         // 解析方案和主机
         string scheme;
         string hostPort; // host:port 部分
+        string pathAndQuery = "/";
 
         if (!trimmed.Contains("://"))
         {
@@ -84,6 +86,12 @@ public static class UrlNormalizer
             scheme = uri.Scheme;
             // 提取 host:port（Uri.Host 不含端口，需要用 Authority 或手动提取）
             hostPort = uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+            // 保留路径和查询参数
+            pathAndQuery = uri.AbsolutePath + uri.Query;
+            if (string.IsNullOrEmpty(pathAndQuery) || pathAndQuery == "/")
+            {
+                pathAndQuery = uri.PathAndQuery;
+            }
         }
 
         // 从 hostPort 中分离 host 和 port
@@ -133,7 +141,7 @@ public static class UrlNormalizer
         bool isTls = scheme == "https";
         int finalPort = port > 0 ? port : (isTls ? 443 : 80);
 
-        return new NormalizedTarget(scheme, host, finalPort, isTls);
+        return new NormalizedTarget(scheme, host, finalPort, isTls, pathAndQuery);
     }
 
     /// <summary>
