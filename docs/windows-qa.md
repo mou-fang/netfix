@@ -26,7 +26,68 @@
 - 无 Windows VM，无法执行任务书 §11.3 要求的故障注入测试（阶段 2+ 需要）。
 - 无 Windows CI Runner，当前仅本机手动验证。
 
-### 2026-07-13 阶段 2 验证
+### 2026-07-13 阶段 2.1 探针语义修正验证
+
+#### 测试环境
+- 机器：本机 Windows 11 (10.0.26100) x64
+- .NET SDK：10.0.301
+- 网络状态：正常（有代理/无代理两种状态均验证）
+
+#### 单元测试（默认运行，不依赖公网）
+
+```
+dotnet test NetMedic.slnx -c Debug
+-> 通过 52，失败 0，跳过 8（集成测试）
+```
+
+#### 集成测试（NETMEDIC_INTEGRATION_TESTS=1）
+
+```
+dotnet test --environment NETMEDIC_INTEGRATION_TESTS=1
+-> 通过 60，失败 0，跳过 0
+```
+
+#### 健康目标验证
+
+| 目标 | 分类 | 关闭重定向 | 正文验证 | 用途 |
+|---|---|---|---|---|
+| www.msftconnecttest.com/connecttest.txt | NcsiContentCheck | 是 | "Microsoft Connect Test" | 认证门户检测 |
+| www.cloudflare.com/cdn-cgi/trace | IndependentHttps | 否 | "ip=" | 独立 HTTPS 直连/代理验证 |
+| connectivitycheck.gstatic.com/generate_204 | GlobalServicePath | 否 | （204 状态码） | 全球路径辅助，失败不判定断网 |
+
+#### WEB-02/03 真实执行证据
+
+| 探针 | use_proxy | request_made | 系统无代理时行为 |
+|---|---|---|---|
+| WEB-02 | false | true | 直连 HTTPS 请求真实发出 |
+| WEB-03（有代理） | true | true | 系统代理 HTTPS 请求真实发出 |
+| WEB-03（无代理） | true | false | Skipped + reused_from=WEB-02 |
+
+#### PRX-02 WinHTTP 读取方式
+
+- API：`WinHttpGetDefaultProxyConfiguration`（winhttp.dll）
+- 不使用注册表推断
+- 证据字段：`proxy_layer=WinHTTP`、`winhttp_access_type`、`winhttp_proxy`
+
+#### TARGET-01 HTTP/HTTPS/端口测试
+
+| 输入 | scheme | port | is_tls | tls_performed |
+|---|---|---|---|---|
+| www.cloudflare.com（无协议） | https | 443 | true | true |
+| http://www.msftconnecttest.com/... | http | 80 | false | false |
+| https://www.cloudflare.com:8443 | https | 8443 | true | true |
+
+#### SYS-01 域加入检测方式
+
+- API：`NetGetJoinInformation`（netapi32.dll）
+- 不使用环境变量比较
+- 证据字段：`join_status`（如 `NetSetupWorkgroupName(WORKGROUP)` 或 `NetSetupDomainName(DOMAIN)`）
+
+#### NET-01 多网卡处理
+
+- 有网关的候选接口列表保留
+- 唯一候选 = 主接口（Pass）
+- 多个有网关候选 = "多活动接口"（Warning/Medium），不随意选择
 
 #### 测试环境
 - 机器：本机 Windows 11 (10.0.26100) x64

@@ -2,6 +2,46 @@
 
 本项目所有用户可见变化记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.3.1] - 2026-07-13
+
+### 阶段 2.1：探针语义修正
+
+#### 健康目标调整
+- 增加 Windows 官方 NCSI 目标 `http://www.msftconnecttest.com/connecttest.txt`，关闭自动重定向并验证预期正文 "Microsoft Connect Test"。
+- 引入 `HealthTargetCategory` 枚举：`NcsiContentCheck`（认证门户）、`IndependentHttps`（独立 HTTPS）、`GlobalServicePath`（全球路径，失败不判定断网）。
+- 每个目标单独记录结果；任一目标失败不直接判定断网。
+
+#### WEB-02/03 语义修正
+- WEB-02 明确 `UseProxy=false`，真正直连，标记 `request_made=true`。
+- WEB-03 使用系统默认代理路径，标记代理来源。
+- 系统无代理时 WEB-03 返回 `Skipped` + `reused_from=WEB-02`，不以 `<1ms Pass` 冒充请求。
+- 新增测试证明"直连成功/代理失败"和"代理成功/直连失败"可区分。
+
+#### PRX-02 修正
+- 使用 `WinHttpGetDefaultProxyConfiguration` API 替换注册表推断。
+- WinINET、WinHTTP、PAC 在技术证据中分别标记 `proxy_layer`。
+
+#### TARGET-01 修正
+- `UrlNormalizer.Normalize` 返回完整 `NormalizedTarget`（方案+主机+端口+TLS）。
+- http 默认 80 端口不执行 TLS；https 默认 443 执行 TLS。
+- 尊重 URL 显式端口（如 `:8443`）。
+- 用户不输入协议默认补全 HTTPS。
+- DNS、TCP、TLS、HTTP 各阶段分别记录。
+
+#### SYS-01 修正
+- 域加入状态使用 `NetGetJoinInformation` API 替换环境变量比较。
+- `GetSystemMetrics` 只用于远程会话检测。
+
+#### NET-01 修正
+- 不简单选取第一张 Up 网卡。
+- 多网卡同时活动时保留候选列表，根据默认网关给出主接口。
+- 无法唯一确定时返回"多活动接口"（Warning），不随意选择。
+
+#### 测试拆分
+- 单元测试（52 项）默认运行，不依赖公网。
+- 集成测试（8 项）通过 `NETMEDIC_INTEGRATION_TESTS=1` 环境变量触发。
+- `IntegrationFact`/`IntegrationTheory` 自定义特性。
+
 ## [0.3.0] - 2026-07-13
 
 ### 阶段 2：快速只读体检

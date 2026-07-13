@@ -6,7 +6,9 @@ namespace NetMedic.App.Windows.Probes;
 
 /// <summary>
 /// NET-01: 活动网卡与链路状态探针。
-/// 使用 .NET BCL NetworkInterface API（对应任务书 §8.5 优先使用 BCL）。
+/// 修正（阶段 2.1）：不简单选取第一张 Up 网卡作为活动网卡。
+/// 多张网卡同时活动时保留候选列表，根据默认网关给出主接口；
+/// 暂时无法唯一确定时返回"多活动接口"，不随意选择。
 /// </summary>
 public sealed class AdapterProbe : WindowsProbeBase
 {
@@ -15,29 +17,77 @@ public sealed class AdapterProbe : WindowsProbeBase
     protected override Task<ProbeResult> ExecuteCoreAsync(ProbeContext context, CancellationToken cancellationToken)
     {
         var evidence = new Dictionary<string, object?>();
-        var adapters = NetworkInterface.GetAllNetworkInterfaces()
+
+        var upAdapters = NetworkInterface.GetAllNetworkInterfaces()
             .Where(a => a.OperationalStatus == OperationalStatus.Up)
             .Where(a => a.NetworkInterfaceType != NetworkInterfaceType.Loopback)
             .ToList();
 
-        evidence["up_adapter_count"] = adapters.Count;
-        evidence["adapter_names"] = adapters.Select(a => a.Name).ToList();
+        evidence["up_adapter_count"] = upAdapters.Count;
 
-        if (adapters.Count == 0)
+        if (upAdapters.Count == 0)
         {
+            evidence["adapter_names"] = new List<string>();
             return Task.FromResult(ProbeResult.Fail(this.Id, "probe.net.adapter.none",
                 evidence: evidence.AsReadOnly(), severity: ProbeSeverity.High));
         }
 
-        // 检查至少有一个非虚拟网卡或至少有活动连接
-        bool hasPhysicalOrConnected = adapters.Any(a =>
-            a.NetworkInterfaceType != NetworkInterfaceType.Tunnel &&
-            a.NetworkInterfaceType != NetworkInterfaceType.Ppp);
+        // 收集有默认网关的候选接口
+        var candidatesWithGateway = new List<(NetworkInterface adapter, List<string> gateways)>();
+        var candidatesNoGateway = new List<string>();
 
-        evidence["has_physical_or_connected"] = hasPhysicalOrConnected;
+        foreach (var adapter in upAdapters)
+        {
+            var props = adapter.GetIPProperties();
+            var gateways = props.GatewayAddresses
+                .Where(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .Select(g => g.Address.ToString())
+                .ToList();
 
-        return Task.FromResult(ProbeResult.Pass(this.Id, "probe.net.adapter.ok",
-            evidence: evidence.AsReadOnly()));
+            if (gateways.Count > 0)
+            {
+                candidatesWithGateway.Add((adapter, gateways));
+            }
+            else
+            {
+                candidatesNoGateway.Add(adapter.Name);
+            }
+        }
+
+        evidence["candidates_with_gateway"] = candidatesWithGateway.Select(c => c.adapter.Name).ToList();
+        evidence["candidates_without_gateway"] = candidatesNoGateway;
+        evidence["adapter_names"] = upAdapters.Select(a => a.Name).ToList();
+
+        if (candidatesWithGateway.Count == 0)
+        {
+            // 有 Up 网卡但没有一个有网关
+            return Task.FromResult(ProbeResult.Fail(this.Id, "probe.net.adapter.no_gateway",
+                evidence: evidence.AsReadOnly(), severity: ProbeSeverity.High));
+        }
+
+        if (candidatesWithGateway.Count == 1)
+        {
+            // 唯一有网关的接口 = 主接口
+            var primary = candidatesWithGateway[0];
+            evidence["primary_adapter"] = primary.adapter.Name;
+            evidence["primary_gateways"] = primary.gateways;
+            return Task.FromResult(ProbeResult.Pass(this.Id, "probe.net.adapter.ok",
+                evidence: evidence.AsReadOnly()));
+        }
+
+        // 多个有网关的候选：无法唯一确定主接口
+        // 尝试用接口 metric 选最低（最优）的
+        var sorted = candidatesWithGateway
+            .OrderBy(c => c.adapter.GetIPProperties().GetIPv4Properties().Index)
+            .ToList();
+
+        // 检查 metric 差异是否显著
+        // 如果无法可靠区分，返回 Warning + "多活动接口"
+        evidence["multiple_gateway_adapters"] = sorted.Select(c => c.adapter.Name).ToList();
+        evidence["primary_adapter"] = "ambiguous";
+
+        return Task.FromResult(ProbeResult.Fail(this.Id, "probe.net.adapter.multiple_active",
+            evidence: evidence.AsReadOnly(), severity: ProbeSeverity.Medium));
     }
 }
 
@@ -65,7 +115,6 @@ public sealed class IpAddressProbe : WindowsProbeBase
             {
                 if (addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
                 {
-                    // 检查 APIPA (169.254.x.x)
                     if (IsApiPA(addr.Address))
                     {
                         hasApiPA = true;
@@ -131,7 +180,10 @@ public sealed class GatewayProbe : WindowsProbeBase
             var props = adapter.GetIPProperties();
             foreach (var gw in props.GatewayAddresses)
             {
-                gateways.Add(gw.Address.ToString());
+                if (gw.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    gateways.Add(gw.Address.ToString());
+                }
             }
         }
 

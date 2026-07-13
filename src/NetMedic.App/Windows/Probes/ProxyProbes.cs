@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using NetMedic.Core.Diagnostics;
 
@@ -16,11 +16,16 @@ public sealed class WininetProxyProbe : WindowsProbeBase
 {
     public override string Id => "PRX-01";
 
+    public override TimeSpan Timeout => TimeSpan.FromSeconds(3);
+
     protected override Task<ProbeResult> ExecuteCoreAsync(ProbeContext context, CancellationToken cancellationToken)
     {
-        var evidence = new Dictionary<string, object?>();
+        var evidence = new Dictionary<string, object?>
+        {
+            ["proxy_layer"] = "WinINET",
+        };
 
-        // 读取当前用户 Internet Settings
+        // 读取当前用户 Internet Settings（WinINET 层）
         using var key = Registry.CurrentUser.OpenSubKey(
             @"Software\Microsoft\Windows\CurrentVersion\Internet Settings");
 
@@ -60,7 +65,6 @@ public sealed class WininetProxyProbe : WindowsProbeBase
 
             if (!portListening)
             {
-                // 失效本地代理：代理开启 + 指向回环 + 端口未监听
                 return Task.FromResult(ProbeResult.Fail(this.Id, "probe.prx.wininet.dead_local",
                     evidence: evidence.AsReadOnly(), severity: ProbeSeverity.High));
             }
@@ -77,8 +81,6 @@ public sealed class WininetProxyProbe : WindowsProbeBase
             return (null, 0);
         }
 
-        // ProxyServer 可能是 "host:port" 或 "http=host:port;https=host:port"
-        // 取第一个条目
         var first = proxyServer.Split(';')[0].Trim();
         if (first.Contains('='))
         {
@@ -116,53 +118,93 @@ public sealed class WininetProxyProbe : WindowsProbeBase
 
 /// <summary>
 /// PRX-02: WinHTTP 代理探针。
-/// 读取注册表 HKLM\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Connections\WinHttpSettings。
-/// WinHTTP 代理与 WinINET 分开记录（任务书 §0 第 5 条）。
+/// 修正（阶段 2.1）：使用 WinHttpGetDefaultProxyConfiguration API 读取，
+/// 不通过 WinINET 注册表项推断。WinHTTP 与 WinINET 在技术证据中分别标记。
 /// </summary>
 public sealed class WinhttpProxyProbe : WindowsProbeBase
 {
     public override string Id => "PRX-02";
 
+    public override TimeSpan Timeout => TimeSpan.FromSeconds(3);
+
     protected override Task<ProbeResult> ExecuteCoreAsync(ProbeContext context, CancellationToken cancellationToken)
     {
-        var evidence = new Dictionary<string, object?>();
+        var evidence = new Dictionary<string, object?>
+        {
+            ["proxy_layer"] = "WinHTTP",
+        };
 
-        // WinHTTP 设置存储在二进制值 WinHttpSettings 中
-        // 简化检测：读取 WinHttpSettings 是否存在且非默认
-        using var key = Registry.LocalMachine.OpenSubKey(
-            @"Software\Microsoft\Windows\CurrentVersion\Internet Settings\Connections");
+        // 使用 WinHttpGetDefaultProxyConfiguration API 读取 WinHTTP 代理
+        var config = new WinHttpProxyInfo();
+        int result = WinHttpGetDefaultProxyConfiguration(ref config);
 
-        var winHttpSettings = key?.GetValue("WinHttpSettings") as byte[];
-        bool hasCustomProxy = winHttpSettings is not null && winHttpSettings.Length > 24;
+        if (result == 0)
+        {
+            int error = Marshal.GetLastWin32Error();
+            evidence["winhttp_api_error"] = error;
+            return Task.FromResult(ProbeResult.Err(this.Id, "probe.prx.winhttp",
+                new ProbeError("WINHTTP_API_FAILED", $"WinHttpGetDefaultProxyConfiguration failed: {error}")));
+        }
 
-        evidence["winhttp_custom_proxy"] = hasCustomProxy;
+        // config.dwAccessType:
+        // 0 = WinHttpAccessNoProxy (直连)
+        // 3 = WinHttpAccessTypeNamedProxy (使用代理)
+        bool hasProxy = config.dwAccessType == 3; // WINHTTP_ACCESS_TYPE_NAMED_PROXY
+        string? proxyString = config.lpszProxy != IntPtr.Zero
+            ? Marshal.PtrToStringUni(config.lpszProxy)
+            : null;
+        string? bypassString = config.lpszProxyBypass != IntPtr.Zero
+            ? Marshal.PtrToStringUni(config.lpszProxyBypass)
+            : null;
 
-        if (!hasCustomProxy)
+        evidence["winhttp_access_type"] = config.dwAccessType;
+        evidence["winhttp_has_proxy"] = hasProxy;
+        evidence["winhttp_proxy"] = proxyString ?? string.Empty;
+        evidence["winhttp_bypass"] = bypassString ?? string.Empty;
+
+        if (!hasProxy)
         {
             return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.winhttp.direct",
                 evidence: evidence.AsReadOnly()));
         }
 
-        // 有自定义 WinHTTP 代理设置
-        // 详细解析需要解析 WinHttpSettings 二进制格式，此处标记为需要关注
+        // 有 WinHTTP 代理配置
         return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.winhttp.custom",
             evidence: evidence.AsReadOnly()));
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WinHttpProxyInfo
+    {
+        public int dwAccessType;      // WINHTTP_ACCESS_TYPE_*
+        public IntPtr lpszProxy;       // proxy server list
+        public IntPtr lpszProxyBypass; // bypass list
+    }
+
+    [DllImport("winhttp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int WinHttpGetDefaultProxyConfiguration(ref WinHttpProxyInfo pProxyInfo);
 }
 
 /// <summary>
 /// PRX-03: PAC 自动代理脚本探针。
 /// 检查是否配置了 PAC URL，以及该 URL 是否可访问。
 /// 不执行不受信任的 PAC 脚本（任务书 §8.2）。
+/// 当前用户 PAC 从 WinINET 注册表读取（与 WinHTTP 分开标记）。
 /// </summary>
 public sealed class PacProxyProbe : WindowsProbeBase
 {
     public override string Id => "PRX-03";
 
+    public override TimeSpan Timeout => TimeSpan.FromSeconds(3);
+
     protected override Task<ProbeResult> ExecuteCoreAsync(ProbeContext context, CancellationToken cancellationToken)
     {
-        var evidence = new Dictionary<string, object?>();
+        var evidence = new Dictionary<string, object?>
+        {
+            ["proxy_layer"] = "PAC",
+        };
 
+        // PAC 配置从 WinINET 用户设置读取（AutoConfigURL）
         using var key = Registry.CurrentUser.OpenSubKey(
             @"Software\Microsoft\Windows\CurrentVersion\Internet Settings");
 
@@ -179,7 +221,32 @@ public sealed class PacProxyProbe : WindowsProbeBase
         }
 
         // 尝试访问 PAC URL（只获取内容，不执行脚本）
-        // 简化：标记为已配置
+        bool pacReachable = false;
+        try
+        {
+            using var handler = new System.Net.Http.HttpClientHandler
+            {
+                UseProxy = false,
+                AllowAutoRedirect = false,
+            };
+            using var client = new System.Net.Http.HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
+            var response = client.GetAsync(autoConfigUrl, cancellationToken).Result;
+            pacReachable = response.IsSuccessStatusCode;
+            evidence["pac_http_status"] = (int)response.StatusCode;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            evidence["pac_fetch_error"] = ex.GetType().Name;
+        }
+
+        evidence["pac_reachable"] = pacReachable;
+
+        if (!pacReachable)
+        {
+            return Task.FromResult(ProbeResult.Fail(this.Id, "probe.prx.pac.unreachable",
+                evidence: evidence.AsReadOnly(), severity: ProbeSeverity.Medium));
+        }
+
         return Task.FromResult(ProbeResult.Pass(this.Id, "probe.prx.pac.configured",
             evidence: evidence.AsReadOnly()));
     }
@@ -213,9 +280,14 @@ public sealed class LocalProxyPortProbe : WindowsProbeBase
 {
     public override string Id => "PRX-04";
 
+    public override TimeSpan Timeout => TimeSpan.FromSeconds(3);
+
     protected override Task<ProbeResult> ExecuteCoreAsync(ProbeContext context, CancellationToken cancellationToken)
     {
-        var evidence = new Dictionary<string, object?>();
+        var evidence = new Dictionary<string, object?>
+        {
+            ["proxy_layer"] = "LocalPort",
+        };
 
         using var key = Registry.CurrentUser.OpenSubKey(
             @"Software\Microsoft\Windows\CurrentVersion\Internet Settings");
@@ -229,7 +301,6 @@ public sealed class LocalProxyPortProbe : WindowsProbeBase
             return Task.FromResult(ProbeResult.Skip(this.Id, "probe.prx.port.no_proxy"));
         }
 
-        // 解析代理地址
         var first = proxyServer.Split(';')[0].Trim();
         if (first.Contains('='))
         {
@@ -252,7 +323,6 @@ public sealed class LocalProxyPortProbe : WindowsProbeBase
 
         evidence["is_loopback"] = true;
 
-        // 检查端口是否监听
         bool listening = false;
         try
         {

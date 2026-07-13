@@ -104,3 +104,59 @@
 - 决策：阶段 2 先在当前 Windows 电脑实现和验证正常状态下的只读探针。阶段 2 最终标记完成前，必须配置 Windows VM 或明确列出未验证的异常场景。
 - 理由：正常状态探针可在本机验证；故障注入需要 VM 隔离。
 - 影响：阶段 2 不得通过修改当前主力电脑网络来制造故障。
+
+## ADR-014：健康目标分类与 NCSI 正文验证
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：引入 `HealthTargetCategory` 枚举，将健康目标分为三类：NCSI 正文验证（认证门户）、独立 HTTPS、全球服务路径。NCSI 目标关闭自动重定向并验证 "Microsoft Connect Test" 正文。全球服务路径目标失败不判定断网。
+- 理由：不同目标有不同的语义和失败影响；单一目标失败不能判定断网。
+- 影响：WEB-01 改用 NCSI 正文验证；WEB-04 辅助使用全球路径目标。
+
+## ADR-015：WEB-03 无代理时返回 Skipped 而非冒充 Pass
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：系统无代理时 WEB-03 返回 `Skipped` + `reused_from=WEB-02` 证据，不发出伪请求。
+- 理由：不以 `<1ms Pass` 冒充独立 HTTPS 请求；明确区分真实请求与复用。
+- 影响：WEB-03 证据包含 `request_made` 字段标记是否实际发出请求。
+
+## ADR-016：PRX-02 使用 WinHTTP API 而非注册表推断
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：WinHTTP 代理通过 `WinHttpGetDefaultProxyConfiguration` API 读取，不通过 WinINET 注册表项推断。
+- 理由：WinINET 和 WinHTTP 是独立的代理配置层，注册表推断不可靠。
+- 影响：所有代理探针在证据中标记 `proxy_layer` 字段（WinINET/WinHTTP/PAC/LocalPort）。
+
+## ADR-017：TARGET-01 分阶段记录 DNS/TCP/TLS/HTTP
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：TARGET-01 返回 `NormalizedTarget`（方案+主机+端口+TLS），DNS/TCP/TLS/HTTP 各阶段分别记录。http 默认 80 不执行 TLS，https 默认 443 执行 TLS，尊重显式端口，默认补全 HTTPS。
+- 理由：不只返回"URL被接受"；分层记录便于定位故障层。
+- 影响：`UrlNormalizer.Normalize` 替换 `NormalizeToHost` 为主接口。
+
+## ADR-018：SYS-01 使用 NetGetJoinInformation 检测域加入
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：域加入状态使用 `NetGetJoinInformation` API，不比较用户名/域名/环境变量。
+- 理由：环境变量比较不可靠（WORKGROUP 机器的用户域名也可能与机器名不同）。
+- 影响：SYS-01 证据包含 `join_status` 字段，值为 API 返回的状态。
+
+## ADR-019：NET-01 多网卡候选列表
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：多张网卡同时活动时保留候选列表，根据默认网关给出主接口。无法唯一确定时返回"多活动接口"（Warning），不随意选择第一张。
+- 理由：简单选取第一张 Up 网卡可能导致误判。
+- 影响：NET-01 证据包含 `candidates_with_gateway`、`primary_adapter` 字段。
+
+## ADR-020：测试拆分为单元测试和集成测试
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：普通 `dotnet test` 默认只运行可重复的单元/模拟测试（52 项），不依赖公网。真实公网和 Windows 探针测试标记为 Integration（8 项），通过 `NETMEDIC_INTEGRATION_TESTS=1` 环境变量触发。
+- 理由：CI 和开发时不应依赖公网可用性；真实验证需显式触发。
+- 影响：`IntegrationFact`/`IntegrationTheory` 自定义特性；报告分别列出结果。

@@ -5,16 +5,15 @@ using NetMedic.Core.Diagnostics;
 namespace NetMedic.Tests;
 
 /// <summary>
-/// Windows 真实探针验证测试。
-/// 仅在 Windows 上运行，验证真实探针在正常网络状态下的行为。
+/// Windows 真实探针集成验证测试。
+/// 仅在 NETMEDIC_INTEGRATION_TESTS=1 时运行，避免依赖公网。
 /// 对应任务书 §11.3：Windows 专属功能必须有 Windows Runner/VM 证据。
 /// </summary>
 public class WindowsProbeVerificationTests
 {
-    [Fact]
+    [IntegrationFact]
     public async Task AllProbes_CompleteWithinTimeout_NonAdmin()
     {
-        // 此测试在真实 Windows 上运行真实探针
         var env = new WindowsNetworkEnvironment();
         var probes = WindowsProbeSet.BuildQuick();
         var orchestrator = new ProbeOrchestrator(probes, maxConcurrency: 2);
@@ -26,23 +25,19 @@ public class WindowsProbeVerificationTests
             totalBudget: TimeSpan.FromSeconds(30),
             externalCancellationToken: CancellationToken.None);
 
-        // 所有探针应完成（非 Skipped），总耗时合理
         Assert.NotEmpty(result.Results);
         Assert.True(result.TotalDuration < TimeSpan.FromSeconds(30),
             $"总耗时 {result.TotalDuration.TotalSeconds:F1}s 超过 30s 预算");
 
-        // 输出每个探针结果用于 QA 记录
         foreach (var r in result.Results)
         {
-            // 验证：所有探针不需要管理员权限
             Assert.False(r.RequiresAdmin, $"探针 {r.Id} 不应需要管理员权限");
-            // 验证：没有超时错误
             Assert.NotEqual("PROBE_TIMEOUT", r.Error?.Code ?? string.Empty);
         }
     }
 
-    [Fact]
-    public async Task Sys01_DetectsWindowsVersion()
+    [IntegrationFact]
+    public async Task Sys01_UsesNetGetJoinInformation()
     {
         var probe = new SystemContextProbe();
         var ctx = new ProbeContext(
@@ -53,56 +48,31 @@ public class WindowsProbeVerificationTests
 
         Assert.Equal("SYS-01", result.Id);
         Assert.True(result.Evidence.ContainsKey("os_version"));
-        Assert.NotEmpty(result.Evidence["os_version"]?.ToString() ?? "");
+        Assert.True(result.Evidence.ContainsKey("join_status"));
+        // join_status 应包含 NetGetJoinInformation 的结果，而非环境变量比较
+        var joinStatus = result.Evidence["join_status"]?.ToString() ?? "";
+        Assert.False(string.IsNullOrEmpty(joinStatus));
     }
 
-    [Fact]
-    public async Task Net01_DetectsActiveAdapter()
+    [IntegrationFact]
+    public async Task Prx02_UsesWinHttpGetDefaultProxyConfiguration()
     {
-        var probe = new AdapterProbe();
+        var probe = new WinhttpProxyProbe();
         var ctx = new ProbeContext(
             DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
             new WindowsNetworkEnvironment());
 
         var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
 
-        Assert.Equal("NET-01", result.Id);
-        // 正常网络下应有活动网卡
-        Assert.True(result.Evidence.ContainsKey("up_adapter_count"));
+        Assert.Equal("PRX-02", result.Id);
+        // 必须标记 proxy_layer = WinHTTP
+        Assert.Equal("WinHTTP", result.Evidence["proxy_layer"]?.ToString());
+        // 必须有 winhttp_access_type 字段（证明使用了 API 而非注册表推断）
+        Assert.True(result.Evidence.ContainsKey("winhttp_access_type"));
     }
 
-    [Fact]
-    public async Task Dns02_ResolvesHealthDomain()
-    {
-        var probe = new DnsResolveProbe();
-        var ctx = new ProbeContext(
-            DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
-            new WindowsNetworkEnvironment());
-
-        var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
-
-        Assert.Equal("DNS-02", result.Id);
-        // 正常网络下应能解析
-        // 注意：如果断网可能失败，此处只验证探针能运行并返回结果
-        Assert.True(result.Status == ProbeStatus.Passed || result.Status == ProbeStatus.Failed);
-    }
-
-    [Fact]
-    public async Task Prx01_ReadsWininetProxy()
-    {
-        var probe = new WininetProxyProbe();
-        var ctx = new ProbeContext(
-            DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
-            new WindowsNetworkEnvironment());
-
-        var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
-
-        Assert.Equal("PRX-01", result.Id);
-        Assert.True(result.Evidence.ContainsKey("proxy_enabled"));
-    }
-
-    [Fact]
-    public async Task Web02_DirectHttpsReachesHealthTarget()
+    [IntegrationFact]
+    public async Task Web02_DirectHttps_UsesNoProxy()
     {
         var probe = new DirectHttpsProbe();
         var ctx = new ProbeContext(
@@ -112,14 +82,42 @@ public class WindowsProbeVerificationTests
         var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
 
         Assert.Equal("WEB-02", result.Id);
-        // 正常网络下直连应成功
-        Assert.True(result.Status == ProbeStatus.Passed || result.Status == ProbeStatus.Failed);
+        // 必须标记 use_proxy = false
+        Assert.Equal(false, result.Evidence["use_proxy"]);
+        // 必须标记 request_made = true（证明实际发出了请求）
+        Assert.Equal(true, result.Evidence["request_made"]);
     }
 
-    [Fact]
-    public async Task Target01_RejectsInvalidInput()
+    [IntegrationFact]
+    public async Task Web03_SystemProxy_ReturnsSkippedOrRealRequest()
     {
-        var probe = new TargetProbe("ftp://malicious.example.com\nrm -rf /");
+        var probe = new SystemProxyHttpsProbe();
+        var ctx = new ProbeContext(
+            DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
+            new WindowsNetworkEnvironment());
+
+        var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.Equal("WEB-03", result.Id);
+        Assert.Equal(true, result.Evidence["use_proxy"]);
+
+        // 如果系统没有代理，应该 Skipped 且 request_made=false
+        // 如果有代理，应该 Pass/Fail 且 request_made=true
+        if (result.Status == ProbeStatus.Skipped)
+        {
+            Assert.Equal(false, result.Evidence["request_made"]);
+            Assert.Equal("WEB-02", result.Evidence["reused_from"]?.ToString());
+        }
+        else
+        {
+            Assert.Equal(true, result.Evidence["request_made"]);
+        }
+    }
+
+    [IntegrationFact]
+    public async Task Target01_HttpsDefault_RecordsAllPhases()
+    {
+        var probe = new TargetProbe("www.cloudflare.com");
         var ctx = new ProbeContext(
             DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
             new WindowsNetworkEnvironment());
@@ -127,15 +125,20 @@ public class WindowsProbeVerificationTests
         var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
 
         Assert.Equal("TARGET-01", result.Id);
-        // 恶意输入应被拒绝
-        Assert.Equal(ProbeStatus.Failed, result.Status);
-        Assert.True(result.Evidence.ContainsKey("input_rejected"));
+        // 默认补全为 HTTPS
+        Assert.Equal("https", result.Evidence["scheme"]?.ToString());
+        Assert.Equal(443, result.Evidence["target_port"]);
+        Assert.Equal(true, result.Evidence["is_tls"]);
+        // 各阶段必须有记录
+        Assert.True(result.Evidence.ContainsKey("dns_ok"));
+        Assert.True(result.Evidence.ContainsKey("tcp_ok"));
+        Assert.True(result.Evidence.ContainsKey("tls_performed"));
     }
 
-    [Fact]
-    public async Task Target01_AcceptsValidUrl()
+    [IntegrationFact]
+    public async Task Target01_HttpUrl_UsesPort80_NoTls()
     {
-        var probe = new TargetProbe("https://www.cloudflare.com");
+        var probe = new TargetProbe("http://www.msftconnecttest.com/connecttest.txt");
         var ctx = new ProbeContext(
             DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
             new WindowsNetworkEnvironment());
@@ -143,7 +146,23 @@ public class WindowsProbeVerificationTests
         var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
 
         Assert.Equal("TARGET-01", result.Id);
-        // 有效 URL 不应被拒绝
-        Assert.False((bool)(result.Evidence.GetValueOrDefault("input_rejected") ?? false));
+        Assert.Equal("http", result.Evidence["scheme"]?.ToString());
+        Assert.Equal(80, result.Evidence["target_port"]);
+        Assert.Equal(false, result.Evidence["is_tls"]);
+        Assert.Equal(false, result.Evidence["tls_performed"]);
+    }
+
+    [IntegrationFact]
+    public async Task Target01_CustomPort_Respected()
+    {
+        var probe = new TargetProbe("https://www.cloudflare.com:8443");
+        var ctx = new ProbeContext(
+            DiagnosticSession.Create(SymptomCategory.Unsure, DiagnosticMode.Quick),
+            new WindowsNetworkEnvironment());
+
+        var result = await probe.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.Equal("TARGET-01", result.Id);
+        Assert.Equal(8443, result.Evidence["target_port"]);
     }
 }

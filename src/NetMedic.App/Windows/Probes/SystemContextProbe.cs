@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
-using System.Diagnostics;
 using NetMedic.Core.Diagnostics;
 
 namespace NetMedic.App.Windows.Probes;
@@ -9,6 +8,8 @@ namespace NetMedic.App.Windows.Probes;
 /// SYS-01: 系统上下文探针。
 /// 检查 Windows 版本、远程会话(RDP)、域/管理状态。
 /// 对应任务书 §5.3 SYS-01。
+/// 修正（阶段 2.1）：域加入状态必须使用 NetGetJoinInformation API，
+/// 不能只比较用户名、域名或环境变量。
 /// </summary>
 public sealed class SystemContextProbe : WindowsProbeBase
 {
@@ -24,18 +25,19 @@ public sealed class SystemContextProbe : WindowsProbeBase
         var osVer = Environment.OSVersion;
         evidence["os_version"] = $"{osVer.Version.Major}.{osVer.Version.Minor}.{osVer.Version.Build}";
 
-        // 是否远程会话
-        bool isRdp = IsRemoteSession();
+        // 远程会话检测：GetSystemMetrics(SM_REMOTESESSION)
+        // GetSystemMetrics 只用于远程会话等状态检测，不用于域判断
+        bool isRdp = GetSystemMetrics(SM_REMOTESESSION) != 0;
         evidence["is_rdp_session"] = isRdp;
 
-        // 是否域加入
-        bool isDomainJoined = IsDomainJoined();
+        // 域加入状态：使用 NetGetJoinInformation API（可靠方式）
+        var (isDomainJoined, joinStatus) = GetJoinStatus();
         evidence["is_domain_joined"] = isDomainJoined;
+        evidence["join_status"] = joinStatus;
 
-        // 判定
+        // 判定：RDP 或域加入 -> 保护模式信号
         if (isRdp || isDomainJoined)
         {
-            // 进入保护模式信号
             return Task.FromResult(ProbeResult.Fail(this.Id, "probe.sys.managed",
                 evidence: evidence.AsReadOnly(), severity: ProbeSeverity.Medium));
         }
@@ -44,30 +46,60 @@ public sealed class SystemContextProbe : WindowsProbeBase
             evidence: evidence.AsReadOnly()));
     }
 
-    private static bool IsRemoteSession()
+    /// <summary>
+    /// 使用 NetGetJoinInformation API 获取域加入状态。
+    /// 返回值：NetSetupUnknownName=0, NetSetupUnjoined=1, NetSetupWorkgroupName=2, NetSetupDomainName=3
+    /// </summary>
+    private static (bool isDomainJoined, string status) GetJoinStatus()
     {
-        // 检测 RDP 会话：通过 GetSystemMetrics(SM_REMOTESESSION)
-        return GetSystemMetrics(SM_REMOTESESSION) != 0;
-    }
-
-    private static bool IsDomainJoined()
-    {
+        IntPtr pDomain = IntPtr.Zero;
         try
         {
-            // 简单检查：环境变量 USERDOMAIN 与 COMPUTERNAME 不同，可能是域
-            // 更准确的方式是 NetGetJoinInformation，但需要 P/Invoke
-            var computerName = Environment.MachineName;
-            var userDomain = Environment.UserDomainName;
-            return !string.Equals(computerName, userDomain, StringComparison.OrdinalIgnoreCase);
+            int result = NetGetJoinInformation(null, out pDomain, out NetJoinStatus status);
+            if (result != 0)
+            {
+                return (false, "NetGetJoinInformation_failed");
+            }
+
+            string domainName = pDomain != IntPtr.Zero ? Marshal.PtrToStringUni(pDomain) ?? string.Empty : string.Empty;
+            bool isDomain = status == NetJoinStatus.NetSetupDomainName;
+            return (isDomain, $"{status}({domainName})");
         }
         catch
         {
-            return false;
+            return (false, "api_error");
+        }
+        finally
+        {
+            if (pDomain != IntPtr.Zero)
+            {
+                NetApiBufferFree(pDomain);
+            }
         }
     }
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
 
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetGetJoinInformation(
+        string? lpServer,
+        out IntPtr lpNameBuffer,
+        out NetJoinStatus BufferType);
+
+    [DllImport("netapi32.dll")]
+    private static extern int NetApiBufferFree(IntPtr Buffer);
+
     private const int SM_REMOTESESSION = 0x1000;
+}
+
+/// <summary>
+/// NetGetJoinInformation 返回的加入状态枚举。
+/// </summary>
+public enum NetJoinStatus
+{
+    NetSetupUnknownStatus = 0,
+    NetSetupUnjoined = 1,
+    NetSetupWorkgroupName = 2,
+    NetSetupDomainName = 3,
 }
