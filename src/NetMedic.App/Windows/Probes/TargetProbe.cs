@@ -49,7 +49,9 @@ public sealed class TargetProbe : WindowsProbeBase
         evidence["target_host"] = target.Host;
         evidence["target_port"] = target.Port;
         evidence["is_tls"] = target.IsTls;
-        evidence["path_and_query"] = target.PathAndQuery;
+        // 阶段 3.0 隐私加固：不记录完整 query 值，只记录路径和是否有查询参数
+        evidence["target_path"] = target.SanitizedPath;
+        evidence["has_query"] = target.HasQuery;
 
         // 阶段 1: DNS 解析
         IPAddress[] addresses;

@@ -6,84 +6,177 @@ namespace NetMedic.Core.Testing;
 /// <summary>
 /// 根据 FakeNetworkEnvironment 构建快速体检探针集。
 /// 对应任务书 §5.3 快速探针目录，阶段 1 使用 Fake 实现。
+/// 阶段 3 更新：从分组对象读取状态，支持新增场景。
 /// </summary>
 public static class FakeProbeSet
 {
     /// <summary>
     /// 构建快速体检所需的全部探针。
-    /// 每个探针从 FakeNetworkEnvironment 读取对应字段并返回 Pass/Fail。
+    /// 每个探针从 FakeNetworkEnvironment 的分组对象读取对应字段并返回 Pass/Fail/Warning。
     /// </summary>
     public static IReadOnlyList<IProbe> BuildQuick(FakeNetworkEnvironment env)
     {
+        _ = env;
         return
         [
-            MakeBoolProbe("SYS-01", "probe.sys", env.IsRdpSession, failIfTrue: true, severity: ProbeSeverity.Medium),
-            MakeBoolProbe("NET-01", "probe.net.adapter", env.HasActiveAdapter),
-            MakeBoolProbe("NET-02", "probe.net.ip", env.HasValidIpv4, failSeverity: ProbeSeverity.High,
-                failIfApiPA: env.HasApiPAAddress),
-            MakeBoolProbe("NET-03", "probe.net.gateway", env.HasDefaultGateway && env.HasDefaultRoute),
-            MakeBoolProbe("DNS-01", "probe.dns.config", env.DnsConfigured),
-            MakeBoolProbe("DNS-02", "probe.dns.resolve", env.SystemDnsResolves, failSeverity: ProbeSeverity.High),
-            MakeProxyProbe(env),
-            MakeBoolProbe("PRX-02", "probe.prx.winhttp", !env.WinhttpProxyEnabled || env.WinhttpProxyReachable,
-                failIfTrue: false),
-            MakeBoolProbe("PRX-03", "probe.prx.pac", !env.PacEnabled || env.PacReachable, failIfTrue: false),
-            MakeBoolProbe("WEB-01", "probe.web.ncsi", env.NcsiConnected, severity: ProbeSeverity.Info),
-            MakeBoolProbe("WEB-02", "probe.web.direct", env.DirectHttpsOk),
-            MakeBoolProbe("WEB-03", "probe.web.proxy", env.SystemProxyHttpsOk, failIfTrue: false),
-            MakeBoolProbe("WEB-04", "probe.web.captive", !env.CaptivePortalDetected, failIfTrue: true,
-                severity: ProbeSeverity.High),
-            MakeBoolProbe("TARGET-01", "probe.target", env.TargetSiteResolves && env.TargetSiteConnects,
-                failIfTrue: false, severity: ProbeSeverity.Medium),
+            // SYS-01: 系统上下文（保护上下文检测）
+            new FakeProbe("SYS-01", e => e.System.IsRdpSession || e.System.IsManagedEnvironment
+                ? new ProbeResult("SYS-01", ProbeStatus.Warning, ProbeSeverity.Medium, "probe.sys.protected_context",
+                    new Dictionary<string, object?> { ["is_rdp_session"] = e.System.IsRdpSession, ["is_domain_joined"] = e.System.IsManagedEnvironment }.AsReadOnly(),
+                    TimeSpan.Zero, DateTimeOffset.MinValue)
+                : ProbeResult.Pass("SYS-01", "probe.sys.ok")),
+
+            // NET-01: 活动网卡
+            MakeBoolProbe("NET-01", "probe.net.adapter", e => e.Adapter.HasActiveAdapter),
+
+            // NET-02: IP 地址（含 APIPA 检测）
+            new FakeProbe("NET-02", e =>
+            {
+                if (e.Adapter.HasApiPAAddress && !e.Adapter.HasValidIpv4)
+                {
+                    return ProbeResult.Fail("NET-02", "probe.net.ip.apipa", severity: ProbeSeverity.High);
+                }
+
+                return e.Adapter.HasValidIpv4
+                    ? ProbeResult.Pass("NET-02", "probe.net.ip.ok")
+                    : ProbeResult.Fail("NET-02", "probe.net.ip.none", severity: ProbeSeverity.High);
+            }),
+
+            // NET-03: 默认网关与路由
+            MakeBoolProbe("NET-03", "probe.net.gateway", e => e.Adapter.HasDefaultGateway && e.Adapter.HasDefaultRoute),
+
+            // DNS-01: DNS 配置
+            MakeBoolProbe("DNS-01", "probe.dns.config", e => e.Dns.Configured),
+
+            // DNS-02: 系统解析
+            MakeBoolProbe("DNS-02", "probe.dns.resolve", e => e.Dns.SystemResolves, failSeverity: ProbeSeverity.High),
+
+            // PRX-01: WinINET 代理
+            new FakeProbe("PRX-01", e =>
+            {
+                if (!e.Proxy.WininetEnabled)
+                {
+                    return ProbeResult.Pass("PRX-01", "probe.prx.wininet.off");
+                }
+
+                if (e.Proxy.WininetIsLoopback && !e.Proxy.WininetPortListening)
+                {
+                    return ProbeResult.Fail("PRX-01", "probe.prx.wininet.dead_local",
+                        evidence: new Dictionary<string, object?>
+                        {
+                            ["proxy_address"] = e.Proxy.WininetAddress ?? "unknown",
+                            ["is_loopback"] = true,
+                            ["port_listening"] = false,
+                        }.AsReadOnly(),
+                        severity: ProbeSeverity.High);
+                }
+
+                return ProbeResult.Pass("PRX-01", "probe.prx.wininet.active");
+            }),
+
+            // PRX-02: WinHTTP 代理
+            new FakeProbe("PRX-02", e =>
+            {
+                if (!e.Proxy.WinhttpEnabled)
+                {
+                    return ProbeResult.Pass("PRX-02", "probe.prx.winhttp.direct");
+                }
+
+                return e.Proxy.WinhttpReachable
+                    ? ProbeResult.Pass("PRX-02", "probe.prx.winhttp.custom")
+                    : ProbeResult.Fail("PRX-02", "probe.prx.winhttp.unreachable", severity: ProbeSeverity.High);
+            }),
+
+            // PRX-03: PAC
+            new FakeProbe("PRX-03", e =>
+            {
+                if (!e.Proxy.PacEnabled)
+                {
+                    return ProbeResult.Pass("PRX-03", "probe.prx.pac.off");
+                }
+
+                return e.Proxy.PacReachable
+                    ? ProbeResult.Pass("PRX-03", "probe.prx.pac.ok")
+                    : ProbeResult.Fail("PRX-03", "probe.prx.pac.unreachable", severity: ProbeSeverity.Medium);
+            }),
+
+            // PRX-04: 本地代理端口（简化：与 PRX-01 一致）
+            new FakeProbe("PRX-04", e =>
+            {
+                if (!e.Proxy.WininetEnabled)
+                {
+                    return ProbeResult.Skip("PRX-04", "probe.prx.port.no_proxy");
+                }
+
+                if (e.Proxy.WininetIsLoopback && !e.Proxy.WininetPortListening)
+                {
+                    return ProbeResult.Fail("PRX-04", "probe.prx.port.dead", severity: ProbeSeverity.High);
+                }
+
+                return ProbeResult.Skip("PRX-04", "probe.prx.port.not_loopback");
+            }),
+
+            // WEB-01: NCSI（使用 NcsiSemanticEvaluator 语义）
+            new FakeProbe("WEB-01", e =>
+            {
+                bool contentOk = e.Web.NcsiConnected;
+                bool redirected = e.Web.CaptivePortalDetected;
+                var eval = NcsiSemanticEvaluator.Evaluate(contentOk, e.Web.NcsiConnected, redirected, !contentOk);
+                var evidence = new Dictionary<string, object?>();
+                if (eval.Signal is not null) evidence["ncsi_signal"] = eval.Signal;
+                return new ProbeResult("WEB-01", eval.Status, eval.Severity, eval.SummaryKey,
+                    evidence.AsReadOnly(), TimeSpan.Zero, DateTimeOffset.MinValue);
+            }),
+
+            // WEB-02: 直连 HTTPS
+            MakeBoolProbe("WEB-02", "probe.web.direct", e => e.Web.DirectHttpsOk),
+
+            // WEB-03: 系统代理 HTTPS
+            new FakeProbe("WEB-03", e =>
+            {
+                if (!e.Proxy.WininetEnabled && !e.Proxy.WinhttpEnabled && !e.Proxy.PacEnabled)
+                {
+                    return new ProbeResult("WEB-03", ProbeStatus.Skipped, ProbeSeverity.Info,
+                        "probe.web.proxy.skipped_no_proxy",
+                        new Dictionary<string, object?> { ["request_made"] = false, ["reused_from"] = "WEB-02" }.AsReadOnly(),
+                        TimeSpan.Zero, DateTimeOffset.MinValue);
+                }
+
+                return e.Web.SystemProxyHttpsOk
+                    ? ProbeResult.Pass("WEB-03", "probe.web.proxy.ok")
+                    : ProbeResult.Fail("WEB-03", "probe.web.proxy.fail", severity: ProbeSeverity.Medium);
+            }),
+
+            // WEB-04: 认证门户
+            new FakeProbe("WEB-04", e =>
+            {
+                return e.Web.CaptivePortalDetected
+                    ? ProbeResult.Fail("WEB-04", "probe.web.captive.detected", severity: ProbeSeverity.High)
+                    : ProbeResult.Pass("WEB-04", "probe.web.captive.none");
+            }),
+
+            // TARGET-01: 用户指定目标
+            new FakeProbe("TARGET-01", e =>
+            {
+                return e.Web.TargetSiteResolves && e.Web.TargetSiteConnects
+                    ? ProbeResult.Pass("TARGET-01", "probe.target.ok")
+                    : ProbeResult.Fail("TARGET-01", "probe.target.fail", severity: ProbeSeverity.Medium);
+            }),
         ];
     }
 
     private static FakeProbe MakeBoolProbe(
         string id,
         string summaryKey,
-        bool condition,
-        bool failIfTrue = false,
-        ProbeSeverity severity = ProbeSeverity.Info,
-        ProbeSeverity failSeverity = ProbeSeverity.High,
-        bool failIfApiPA = false)
+        Func<FakeNetworkEnvironment, bool> condition,
+        ProbeSeverity failSeverity = ProbeSeverity.High)
     {
         return new FakeProbe(id, env =>
         {
-            bool isFail = failIfTrue ? condition : !condition;
-            if (failIfApiPA)
-            {
-                return ProbeResult.Fail(id, "probe.net.apipa", severity: ProbeSeverity.High);
-            }
-
-            return isFail
-                ? ProbeResult.Fail(id, summaryKey + ".fail", severity: failSeverity)
-                : ProbeResult.Pass(id, summaryKey + ".ok");
-        });
-    }
-
-    private static FakeProbe MakeProxyProbe(FakeNetworkEnvironment env)
-    {
-        _ = env; // 探针在执行时从 ProbeContext 获取环境，此处不需要
-        return new FakeProbe("PRX-01", e =>
-        {
-            if (!e.WininetProxyEnabled)
-            {
-                return ProbeResult.Pass("PRX-01", "probe.prx.wininet.off");
-            }
-
-            if (e.WininetProxyIsLoopback && !e.WininetProxyPortListening)
-            {
-                return ProbeResult.Fail("PRX-01", "probe.prx.wininet.dead_local",
-                    evidence: new Dictionary<string, object?>
-                    {
-                        ["proxy_address"] = e.WininetProxyAddress ?? "unknown",
-                        ["is_loopback"] = true,
-                        ["port_listening"] = false,
-                    }.AsReadOnly(),
-                    severity: ProbeSeverity.High);
-            }
-
-            return ProbeResult.Pass("PRX-01", "probe.prx.wininet.active");
+            bool ok = condition(env);
+            return ok
+                ? ProbeResult.Pass(id, summaryKey + ".ok")
+                : ProbeResult.Fail(id, summaryKey + ".fail", severity: failSeverity);
         });
     }
 }

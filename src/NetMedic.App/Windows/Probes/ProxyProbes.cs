@@ -46,10 +46,11 @@ public sealed class WininetProxyProbe : WindowsProbeBase
         evidence["auto_config_url"] = UrlSanitizer.SanitizeUrl(autoConfigUrl);
 
         // PRX-01 只读取配置，不检测端口
-        // 解析代理地址用于记录（不连接）
+        // 阶段 3.0 隐私加固：proxy_host 必须从脱敏结果安全解析，不能从含凭据的原始 ProxyServer 解析
         if (proxyEnabled && !string.IsNullOrWhiteSpace(proxyServer))
         {
-            var (host, port) = ParseProxyServer(proxyServer);
+            var sanitizedProxy = UrlSanitizer.SanitizeProxyServer(proxyServer);
+            var (host, port) = ParseProxyServer(sanitizedProxy);
             evidence["proxy_host"] = host ?? string.Empty;
             evidence["proxy_port"] = port;
             evidence["is_loopback"] = host is "127.0.0.1" or "localhost" or "::1";

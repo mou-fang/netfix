@@ -12,6 +12,27 @@ public sealed record NormalizedTarget(
 {
     /// <summary>默认端口（http=80, https=443）。</summary>
     public int DefaultPort => Scheme == "https" ? 443 : 80;
+
+    /// <summary>
+    /// 脱敏路径：只保留路径部分，不包含查询参数。
+    /// 用于 evidence 记录，不泄露 token/key/code 等参数值。
+    /// </summary>
+    public string SanitizedPath
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(PathAndQuery) || PathAndQuery == "/")
+            {
+                return "/";
+            }
+
+            var queryIndex = PathAndQuery.IndexOf('?');
+            return queryIndex >= 0 ? PathAndQuery[..queryIndex] : PathAndQuery;
+        }
+    }
+
+    /// <summary>是否有查询参数（不记录参数值）。</summary>
+    public bool HasQuery => PathAndQuery.Contains('?');
 }
 
 /// <summary>

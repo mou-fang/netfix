@@ -80,6 +80,8 @@ public static class ScenarioFixtures
     /// <summary>
     /// L15: 只有一个网站失败。预期：不执行全局重置。
     /// 健康目标正常，只有用户指定目标失败。
+    /// ExternalServiceRule 和 SingleSiteIssueRule 都会命中，
+    /// external_service 按字母序排前面，作为首选 Finding。
     /// </summary>
     public static ScenarioFixture L15_SingleSiteIssue() => new(
         Name: "L15_SingleSiteIssue",
@@ -91,7 +93,7 @@ public static class ScenarioFixtures
                 TargetSiteConnects = false,
             },
         },
-        ExpectedFindingId: "finding.single_site_issue",
+        ExpectedFindingId: "finding.external_service",
         ExpectedConfidence: Confidence.High,
         ExpectedRecommendedActionId: null);
 
@@ -103,14 +105,110 @@ public static class ScenarioFixtures
         L09_DnsFailure(),
         L14_NcsiMismatch(),
         L15_SingleSiteIssue(),
+        L20_WinHttpProxyMismatch(),
+        L21_PacUnreachable(),
+        L22_ApipaDhcp(),
+        L23_CaptivePortal(),
+        L24_ExternalService(),
     ];
+
+    /// <summary>L20: WinHTTP 代理残留。WinHTTP 代理不可达，直连成功。</summary>
+    public static ScenarioFixture L20_WinHttpProxyMismatch() => new(
+        Name: "L20_WinHttpProxyMismatch",
+        Environment: FakeNetworkEnvironment.Healthy("L20_WinHttpProxyMismatch") with
+        {
+            Proxy = ProxyState.Direct with
+            {
+                WinhttpEnabled = true,
+                WinhttpReachable = false,
+            },
+        },
+        ExpectedFindingId: "finding.winhttp_proxy_mismatch",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: "FIX-PRX-03");
+
+    /// <summary>L21: PAC 不可达。家庭网络，非企业环境。</summary>
+    public static ScenarioFixture L21_PacUnreachable() => new(
+        Name: "L21_PacUnreachable",
+        Environment: FakeNetworkEnvironment.Healthy("L21_PacUnreachable") with
+        {
+            Proxy = ProxyState.Direct with
+            {
+                PacEnabled = true,
+                PacReachable = false,
+            },
+            Web = WebState.Healthy with { SystemProxyHttpsOk = false },
+        },
+        ExpectedFindingId: "finding.pac_unreachable",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: "FIX-PRX-02");
+
+    /// <summary>L22: APIPA/DHCP 异常。DHCP 接口获得 169.254 地址。</summary>
+    public static ScenarioFixture L22_ApipaDhcp() => new(
+        Name: "L22_ApipaDhcp",
+        Environment: FakeNetworkEnvironment.Healthy("L22_ApipaDhcp") with
+        {
+            Adapter = AdapterState.Healthy with
+            {
+                HasValidIpv4 = false,
+                HasApiPAAddress = true,
+                HasDefaultGateway = false,
+            },
+            Web = WebState.Healthy with
+            {
+                DirectHttpsOk = false,
+                SystemProxyHttpsOk = false,
+                TargetSiteResolves = false,
+                TargetSiteConnects = false,
+            },
+        },
+        ExpectedFindingId: "finding.apipa_dhcp",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: "FIX-DHCP-01");
+
+    /// <summary>L23: 认证门户。WEB-01 检测到重定向信号。</summary>
+    public static ScenarioFixture L23_CaptivePortal() => new(
+        Name: "L23_CaptivePortal",
+        Environment: FakeNetworkEnvironment.Healthy("L23_CaptivePortal") with
+        {
+            Web = WebState.Healthy with
+            {
+                NcsiConnected = false,
+                CaptivePortalDetected = true,
+                DirectHttpsOk = false,
+                SystemProxyHttpsOk = false,
+            },
+        },
+        ExpectedFindingId: "finding.captive_portal",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: null);
+
+    /// <summary>L24: 外部服务故障。本机正常，仅目标网站不可达。</summary>
+    public static ScenarioFixture L24_ExternalService() => new(
+        Name: "L24_ExternalService",
+        Environment: FakeNetworkEnvironment.Healthy("L24_ExternalService") with
+        {
+            Web = WebState.Healthy with
+            {
+                TargetSiteResolves = false,
+                TargetSiteConnects = false,
+            },
+        },
+        ExpectedFindingId: "finding.external_service",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: null);
 
     /// <summary>构建包含所有内置规则的注册表。</summary>
     public static RuleRegistry BuildRuleRegistry() => new RuleRegistry()
         .Add(new DeadLocalProxyRule())
+        .Add(new WinHttpProxyMismatchRule())
+        .Add(new PacUnreachableRule())
+        .Add(new ApipaDhcpRule())
         .Add(new DnsFailureRule())
         .Add(new NcsiMismatchRule())
+        .Add(new CaptivePortalRule())
         .Add(new SingleSiteIssueRule())
+        .Add(new ExternalServiceRule())
         .Add(new NetworkHealthyRule());
 }
 

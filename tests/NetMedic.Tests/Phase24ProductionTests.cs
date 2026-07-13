@@ -220,6 +220,75 @@ public class Phase24ProductionTests
         Assert.Contains("q=test", url);
     }
 
+    // === 6. 隐私加固测试：target_path + has_query 不泄露 query 值 ===
+
+    [Fact]
+    public void NormalizedTarget_SanitizedPath_RemovesQueryValue()
+    {
+        var target = UrlNormalizer.Normalize("https://example.com/path?token=secret123&code=abc")!;
+        Assert.Equal("/path", target.SanitizedPath);
+        Assert.True(target.HasQuery);
+        // SanitizedPath 不应包含 token/secret/code/abc
+        Assert.DoesNotContain("token", target.SanitizedPath);
+        Assert.DoesNotContain("secret", target.SanitizedPath);
+    }
+
+    [Fact]
+    public void NormalizedTarget_SanitizedPath_NoQuery_ReturnsFullPath()
+    {
+        var target = UrlNormalizer.Normalize("https://example.com/path/to/page")!;
+        Assert.Equal("/path/to/page", target.SanitizedPath);
+        Assert.False(target.HasQuery);
+    }
+
+    [Fact]
+    public void NormalizedTarget_SanitizedPath_RootOnly()
+    {
+        var target = UrlNormalizer.Normalize("https://example.com")!;
+        Assert.Equal("/", target.SanitizedPath);
+        Assert.False(target.HasQuery);
+    }
+
+    [Fact]
+    public void NormalizedTarget_PathAndQuery_PreservesFullForRequest()
+    {
+        // 实际网络请求仍可使用完整 PathAndQuery
+        var target = UrlNormalizer.Normalize("https://example.com/api?key=value")!;
+        Assert.Equal("/api?key=value", target.PathAndQuery);
+        // 但证据记录用 SanitizedPath
+        Assert.Equal("/api", target.SanitizedPath);
+        Assert.True(target.HasQuery);
+    }
+
+    /// <summary>
+    /// 修改生产脱敏函数后测试必须能失败。
+    /// 如果 SanitizedPath 不移除 query，此测试会失败。
+    /// </summary>
+    [Fact]
+    public void NormalizedTarget_SanitizedPath_TestCoversProductionCode()
+    {
+        var target = UrlNormalizer.Normalize("https://example.com/path?secret=token")!;
+        // 如果生产代码不移除 query，以下断言会失败
+        Assert.DoesNotContain("secret", target.SanitizedPath);
+        Assert.DoesNotContain("token", target.SanitizedPath);
+        Assert.DoesNotContain("?", target.SanitizedPath);
+    }
+
+    // === 7. 代理地址脱敏后安全解析测试 ===
+
+    [Fact]
+    public void UrlSanitizer_SanitizeProxyServer_ThenParse_NoCredentials()
+    {
+        // 原始代理地址含凭据
+        var rawProxy = "user:pass@127.0.0.1:7890";
+        // 先脱敏
+        var sanitized = UrlSanitizer.SanitizeProxyServer(rawProxy);
+        // 从脱敏结果解析 host/port
+        Assert.Equal("127.0.0.1:7890", sanitized);
+        Assert.DoesNotContain("user", sanitized);
+        Assert.DoesNotContain("pass", sanitized);
+    }
+
     // === 6. 健康目标配置测试 ===
 
     [Fact]

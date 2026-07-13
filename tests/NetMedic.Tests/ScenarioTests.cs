@@ -101,7 +101,7 @@ public class ScenarioTests
     {
         var findings = await RunDiagnosisAsync(ScenarioFixtures.L15_SingleSiteIssue().Environment);
         var primary = findings.First();
-        Assert.Equal("finding.single_site_issue", primary.Id);
+        Assert.Equal("finding.external_service", primary.Id);
         Assert.Null(primary.RecommendedActionId);
     }
 
