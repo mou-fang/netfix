@@ -440,6 +440,158 @@ namespace NetMedic.App.Resources {
 
         // --- Finding 文案（按 key 动态查找） ---
 
+        // network_healthy
+        public static string finding_network_healthy_title {
+            get { return ResourceManager.GetString("finding.network_healthy.title", resourceCulture); }
+        }
+        public static string finding_network_healthy_explanation {
+            get { return ResourceManager.GetString("finding.network_healthy.explanation", resourceCulture); }
+        }
+        public static string finding_network_healthy_summary {
+            get { return ResourceManager.GetString("finding.network_healthy.summary", resourceCulture); }
+        }
+        public static string finding_network_healthy_guidance {
+            get { return ResourceManager.GetString("finding.network_healthy.guidance", resourceCulture); }
+        }
+
+        // dead_local_proxy
+        public static string finding_dead_local_proxy_title {
+            get { return ResourceManager.GetString("finding.dead_local_proxy.title", resourceCulture); }
+        }
+        public static string finding_dead_local_proxy_explanation {
+            get { return ResourceManager.GetString("finding.dead_local_proxy.explanation", resourceCulture); }
+        }
+        public static string finding_dead_local_proxy_summary {
+            get { return ResourceManager.GetString("finding.dead_local_proxy.summary", resourceCulture); }
+        }
+        public static string finding_dead_local_proxy_guidance {
+            get { return ResourceManager.GetString("finding.dead_local_proxy.guidance", resourceCulture); }
+        }
+
+        // winhttp_proxy_config
+        public static string finding_winhttp_proxy_config_title {
+            get { return ResourceManager.GetString("finding.winhttp_proxy_config.title", resourceCulture); }
+        }
+        public static string finding_winhttp_proxy_config_explanation {
+            get { return ResourceManager.GetString("finding.winhttp_proxy_config.explanation", resourceCulture); }
+        }
+        public static string finding_winhttp_proxy_config_summary {
+            get { return ResourceManager.GetString("finding.winhttp_proxy_config.summary", resourceCulture); }
+        }
+        public static string finding_winhttp_proxy_config_guidance {
+            get { return ResourceManager.GetString("finding.winhttp_proxy_config.guidance", resourceCulture); }
+        }
+
+        // pac_unreachable
+        public static string finding_pac_unreachable_title {
+            get { return ResourceManager.GetString("finding.pac_unreachable.title", resourceCulture); }
+        }
+        public static string finding_pac_unreachable_explanation {
+            get { return ResourceManager.GetString("finding.pac_unreachable.explanation", resourceCulture); }
+        }
+        public static string finding_pac_unreachable_summary {
+            get { return ResourceManager.GetString("finding.pac_unreachable.summary", resourceCulture); }
+        }
+        public static string finding_pac_unreachable_guidance {
+            get { return ResourceManager.GetString("finding.pac_unreachable.guidance", resourceCulture); }
+        }
+
+        // apipa_dhcp
+        public static string finding_apipa_dhcp_title {
+            get { return ResourceManager.GetString("finding.apipa_dhcp.title", resourceCulture); }
+        }
+        public static string finding_apipa_dhcp_explanation {
+            get { return ResourceManager.GetString("finding.apipa_dhcp.explanation", resourceCulture); }
+        }
+        public static string finding_apipa_dhcp_summary {
+            get { return ResourceManager.GetString("finding.apipa_dhcp.summary", resourceCulture); }
+        }
+        public static string finding_apipa_dhcp_guidance {
+            get { return ResourceManager.GetString("finding.apipa_dhcp.guidance", resourceCulture); }
+        }
+
+        // dns_failure
+        public static string finding_dns_failure_title {
+            get { return ResourceManager.GetString("finding.dns_failure.title", resourceCulture); }
+        }
+        public static string finding_dns_failure_explanation {
+            get { return ResourceManager.GetString("finding.dns_failure.explanation", resourceCulture); }
+        }
+        public static string finding_dns_failure_summary {
+            get { return ResourceManager.GetString("finding.dns_failure.summary", resourceCulture); }
+        }
+        public static string finding_dns_failure_guidance {
+            get { return ResourceManager.GetString("finding.dns_failure.guidance", resourceCulture); }
+        }
+
+        // ncsi_mismatch
+        public static string finding_ncsi_mismatch_title {
+            get { return ResourceManager.GetString("finding.ncsi_mismatch.title", resourceCulture); }
+        }
+        public static string finding_ncsi_mismatch_explanation {
+            get { return ResourceManager.GetString("finding.ncsi_mismatch.explanation", resourceCulture); }
+        }
+        public static string finding_ncsi_mismatch_summary {
+            get { return ResourceManager.GetString("finding.ncsi_mismatch.summary", resourceCulture); }
+        }
+        public static string finding_ncsi_mismatch_guidance {
+            get { return ResourceManager.GetString("finding.ncsi_mismatch.guidance", resourceCulture); }
+        }
+
+        // captive_portal
+        public static string finding_captive_portal_title {
+            get { return ResourceManager.GetString("finding.captive_portal.title", resourceCulture); }
+        }
+        public static string finding_captive_portal_explanation {
+            get { return ResourceManager.GetString("finding.captive_portal.explanation", resourceCulture); }
+        }
+        public static string finding_captive_portal_summary {
+            get { return ResourceManager.GetString("finding.captive_portal.summary", resourceCulture); }
+        }
+        public static string finding_captive_portal_summary_possible {
+            get { return ResourceManager.GetString("finding.captive_portal.summary_possible", resourceCulture); }
+        }
+        public static string finding_captive_portal_guidance {
+            get { return ResourceManager.GetString("finding.captive_portal.guidance", resourceCulture); }
+        }
+
+        // target_unreachable
+        public static string finding_target_unreachable_title {
+            get { return ResourceManager.GetString("finding.target_unreachable.title", resourceCulture); }
+        }
+        public static string finding_target_unreachable_explanation {
+            get { return ResourceManager.GetString("finding.target_unreachable.explanation", resourceCulture); }
+        }
+        public static string finding_target_unreachable_summary {
+            get { return ResourceManager.GetString("finding.target_unreachable.summary", resourceCulture); }
+        }
+        public static string finding_target_unreachable_guidance {
+            get { return ResourceManager.GetString("finding.target_unreachable.guidance", resourceCulture); }
+        }
+
+        // inconclusive
+        public static string finding_inconclusive_title {
+            get { return ResourceManager.GetString("finding.inconclusive.title", resourceCulture); }
+        }
+        public static string finding_inconclusive_explanation {
+            get { return ResourceManager.GetString("finding.inconclusive.explanation", resourceCulture); }
+        }
+        public static string finding_inconclusive_summary {
+            get { return ResourceManager.GetString("finding.inconclusive.summary", resourceCulture); }
+        }
+        public static string finding_inconclusive_guidance {
+            get { return ResourceManager.GetString("finding.inconclusive.guidance", resourceCulture); }
+        }
+
+        /// <summary>
+        ///   查找类似 处理方法 的本地化字符串。
+        /// </summary>
+        public static string GuidancePanel {
+            get {
+                return ResourceManager.GetString("GuidancePanel", resourceCulture);
+            }
+        }
+
         public static string GetString(string key) {
             return ResourceManager.GetString(key, resourceCulture) ?? key;
         }

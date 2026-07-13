@@ -87,29 +87,49 @@
 
         <!-- 结果页 -->
         <StackPanel Visibility="{Binding CurrentPage, Converter={StaticResource PageToVis}, ConverterParameter=Result}">
-            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,12"
-                       Text="{Binding PrimaryFinding, Converter={StaticResource FindingTitle}, Mode=OneWay}" />
-            <TextBlock FontSize="13" Opacity="0.8" TextWrapping="Wrap" Margin="0,0,0,16"
-                       Text="{Binding PrimaryFinding, Converter={StaticResource FindingExplanation}, Mode=OneWay}" />
+            <!-- 1. 普通用户最关注的一句结论（最大最醒目） -->
+            <TextBlock Text="{Binding PrimaryUserSummary}" FontSize="20" FontWeight="Bold"
+                       TextWrapping="Wrap" Margin="0,8,0,8" />
 
-            <!-- 推荐动作按钮 -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
-                <Button Content="{x:Static res:Strings.SafeRepair}"
-                        Command="{Binding RequestRepairCommand}"
-                        Padding="20,10" FontSize="14" Margin="0,0,12,0"
-                        Visibility="{Binding PrimaryFinding.RecommendedActionId, Converter={StaticResource NullToCollapsed}}" />
-                <Button Content="{x:Static res:Strings.ViewGuidance}"
-                        Command="{Binding ViewGuidanceCommand}"
-                        Padding="20,10" FontSize="14"
-                        Visibility="{Binding HasGuidance, Converter={StaticResource BoolToVis}}" />
-            </StackPanel>
+            <!-- 2. 次级标题（技术性标题） -->
+            <TextBlock Text="{Binding PrimaryTitle}" FontSize="15" FontWeight="SemiBold"
+                       TextWrapping="Wrap" Margin="0,0,0,8" />
 
+            <!-- 3. 简短说明 -->
+            <TextBlock Text="{Binding PrimaryExplanation}" FontSize="13" Opacity="0.8"
+                       TextWrapping="Wrap" Margin="0,0,0,16" />
+
+            <!-- 4. 查看处理方法按钮（仅当有处理方法时可见） -->
+            <Button Content="{x:Static res:Strings.ViewGuidance}"
+                    Command="{Binding ToggleGuidanceCommand}"
+                    Padding="20,10" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,8"
+                    Visibility="{Binding HasGuidance, Converter={StaticResource BoolToVis}}" />
+
+            <!-- 5. 处理方法面板（仅在 IsGuidanceVisible 时展开） -->
+            <Border Visibility="{Binding IsGuidanceVisible, Converter={StaticResource BoolToVis}}"
+                    Background="#F7F7F7" BorderBrush="#E0E0E0" BorderThickness="1"
+                    CornerRadius="6" Padding="14" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="{x:Static res:Strings.GuidancePanel}" FontSize="12"
+                               FontWeight="Medium" Opacity="0.7" Margin="0,0,0,6" />
+                    <TextBlock Text="{Binding PrimaryGuidance}" FontSize="13"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- 6. 安全修复按钮（仅当可修复时可见） -->
+            <Button Content="{x:Static res:Strings.SafeRepair}"
+                    Command="{Binding RequestRepairCommand}"
+                    Padding="20,10" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,8"
+                    Visibility="{Binding CanRepairPrimaryFinding, Converter={StaticResource BoolToVis}}" />
+
+            <!-- 7. 重新检查按钮 -->
             <Button Content="{x:Static res:Strings.Retry}"
                     Command="{Binding GoHomeCommand}"
                     Padding="16,8" FontSize="12"
                     HorizontalAlignment="Center" Margin="0,0,0,16" />
 
-            <!-- 技术详情折叠 -->
+            <!-- 8. 技术详情切换（与处理方法分离） -->
             <Button Content="{x:Static res:Strings.ShowTechnicalDetails}"
                     Command="{Binding ToggleTechnicalDetailsCommand}"
                     FontSize="11" Opacity="0.6" HorizontalAlignment="Left"

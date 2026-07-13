@@ -139,7 +139,7 @@ public static class ScenarioFixtures
         },
         ExpectedFindingId: "finding.pac_unreachable",
         ExpectedConfidence: Confidence.High,
-        ExpectedRecommendedActionId: "FIX-PRX-02");
+        ExpectedRecommendedActionId: null);
 
     /// <summary>L22: APIPA/DHCP 异常。DHCP 接口获得 169.254 地址。</summary>
     public static ScenarioFixture L22_ApipaDhcp() => new(
@@ -162,7 +162,7 @@ public static class ScenarioFixtures
         },
         ExpectedFindingId: "finding.apipa_dhcp",
         ExpectedConfidence: Confidence.High,
-        ExpectedRecommendedActionId: "FIX-DHCP-01");
+        ExpectedRecommendedActionId: null);
 
     /// <summary>L23: 认证门户。WEB-01 检测到重定向信号。</summary>
     public static ScenarioFixture L23_CaptivePortal() => new(

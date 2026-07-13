@@ -9,6 +9,7 @@ namespace NetMedic.App.Windows.Probes;
 /// 修正（阶段 2.1）：不简单选取第一张 Up 网卡作为活动网卡。
 /// 多张网卡同时活动时保留候选列表，根据默认网关给出主接口；
 /// 暂时无法唯一确定时返回"多活动接口"，不随意选择。
+/// 阶段 3 更新：多网关候选返回 Warning（非 Failed），选择逻辑委托给 AdapterSelectionEvaluator。
 /// </summary>
 public sealed class AdapterProbe : WindowsProbeBase
 {
@@ -32,8 +33,8 @@ public sealed class AdapterProbe : WindowsProbeBase
                 evidence: evidence.AsReadOnly(), severity: ProbeSeverity.High));
         }
 
-        // 收集有默认网关的候选接口
-        var candidatesWithGateway = new List<(NetworkInterface adapter, List<string> gateways)>();
+        // 收集每张 Up 网卡的网关信息，构建 AdapterSelectionEvaluator 输入
+        var adapterGateways = new List<(NetworkInterface adapter, List<string> gateways)>();
         var candidatesNoGateway = new List<string>();
 
         foreach (var adapter in upAdapters)
@@ -46,7 +47,7 @@ public sealed class AdapterProbe : WindowsProbeBase
 
             if (gateways.Count > 0)
             {
-                candidatesWithGateway.Add((adapter, gateways));
+                adapterGateways.Add((adapter, gateways));
             }
             else
             {
@@ -54,40 +55,40 @@ public sealed class AdapterProbe : WindowsProbeBase
             }
         }
 
-        evidence["candidates_with_gateway"] = candidatesWithGateway.Select(c => c.adapter.Name).ToList();
+        // 委托纯函数判定主接口与状态
+        var selectionInput = upAdapters
+            .Select(a => (a.Name, HasGateway: adapterGateways.Any(g => g.adapter.Name == a.Name)))
+            .ToList();
+        var selection = AdapterSelectionEvaluator.Evaluate(selectionInput);
+
+        evidence["candidates_with_gateway"] = selection.CandidatesWithGateway;
         evidence["candidates_without_gateway"] = candidatesNoGateway;
         evidence["adapter_names"] = upAdapters.Select(a => a.Name).ToList();
 
-        if (candidatesWithGateway.Count == 0)
+        if (selection.Status == ProbeStatus.Failed)
         {
             // 有 Up 网卡但没有一个有网关
             return Task.FromResult(ProbeResult.Fail(this.Id, "probe.net.adapter.no_gateway",
                 evidence: evidence.AsReadOnly(), severity: ProbeSeverity.High));
         }
 
-        if (candidatesWithGateway.Count == 1)
+        if (selection.Status == ProbeStatus.Passed)
         {
             // 唯一有网关的接口 = 主接口
-            var primary = candidatesWithGateway[0];
+            var primary = adapterGateways.First(g => g.adapter.Name == selection.PrimaryAdapter);
             evidence["primary_adapter"] = primary.adapter.Name;
             evidence["primary_gateways"] = primary.gateways;
             return Task.FromResult(ProbeResult.Pass(this.Id, "probe.net.adapter.ok",
                 evidence: evidence.AsReadOnly()));
         }
 
-        // 多个有网关的候选：无法唯一确定主接口
-        // 尝试用接口 metric 选最低（最优）的
-        var sorted = candidatesWithGateway
-            .OrderBy(c => c.adapter.GetIPProperties().GetIPv4Properties().Index)
-            .ToList();
-
-        // 检查 metric 差异是否显著
-        // 如果无法可靠区分，返回 Warning + "多活动接口"
-        evidence["multiple_gateway_adapters"] = sorted.Select(c => c.adapter.Name).ToList();
+        // 多个有网关的候选：无法唯一确定主接口 -> Warning
+        evidence["multiple_gateway_adapters"] = selection.CandidatesWithGateway;
         evidence["primary_adapter"] = "ambiguous";
 
-        return Task.FromResult(ProbeResult.Fail(this.Id, "probe.net.adapter.multiple_active",
-            evidence: evidence.AsReadOnly(), severity: ProbeSeverity.Medium));
+        return Task.FromResult(new ProbeResult(
+            this.Id, ProbeStatus.Warning, ProbeSeverity.Medium, "probe.net.adapter.multiple_active",
+            evidence.AsReadOnly(), TimeSpan.Zero, DateTimeOffset.MinValue));
     }
 }
 

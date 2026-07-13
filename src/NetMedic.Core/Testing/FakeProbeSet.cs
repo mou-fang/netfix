@@ -26,8 +26,32 @@ public static class FakeProbeSet
                     TimeSpan.Zero, DateTimeOffset.MinValue)
                 : ProbeResult.Pass("SYS-01", "probe.sys.ok")),
 
-            // NET-01: 活动网卡
-            MakeBoolProbe("NET-01", "probe.net.adapter", e => e.Adapter.HasActiveAdapter),
+            // NET-01: 活动网卡（证据结构与真实探针对齐）
+            // Fake 恒为单网卡：HasActiveAdapter 决定 Pass/Fail，不会产生 Warning。
+            new FakeProbe("NET-01", e =>
+            {
+                if (!e.Adapter.HasActiveAdapter)
+                {
+                    return ProbeResult.Fail("NET-01", "probe.net.adapter.none",
+                        evidence: new Dictionary<string, object?>
+                        {
+                            ["up_adapter_count"] = 0,
+                            ["adapter_names"] = new List<string>(),
+                        }.AsReadOnly(),
+                        severity: ProbeSeverity.High);
+                }
+
+                // 健康时返回 Passed，证据字段与真实探针对齐
+                return ProbeResult.Pass("NET-01", "probe.net.adapter.ok",
+                    evidence: new Dictionary<string, object?>
+                    {
+                        ["up_adapter_count"] = 1,
+                        ["adapter_names"] = new List<string> { "fake-adapter" },
+                        ["candidates_with_gateway"] = new List<string> { "fake-adapter" },
+                        ["candidates_without_gateway"] = new List<string>(),
+                        ["primary_adapter"] = "fake-adapter",
+                    }.AsReadOnly());
+            }),
 
             // NET-02: IP 地址（含 APIPA 检测）
             new FakeProbe("NET-02", e =>

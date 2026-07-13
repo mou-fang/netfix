@@ -45,6 +45,13 @@ public sealed partial class MainViewModel : ObservableObject
         this.selectedRepairAction = null;
         this.resultMessage = string.Empty;
         this.isTechnicalDetailsVisible = false;
+        this.primaryUserSummary = string.Empty;
+        this.primaryTitle = string.Empty;
+        this.primaryExplanation = string.Empty;
+        this.primaryGuidance = string.Empty;
+        this.hasGuidance = false;
+        this.canRepairPrimaryFinding = false;
+        this.isGuidanceVisible = false;
     }
 
     [ObservableProperty]
@@ -80,16 +87,33 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool isTechnicalDetailsVisible;
 
-    /// <summary>
-    /// 是否有可用的引导信息。仅当首选 Finding 有推荐动作时为 true。
-    /// ViewGuidance 按钮在此为 false 时隐藏。
-    /// </summary>
-    public bool HasGuidance => this.PrimaryFinding?.RecommendedActionId is not null;
+    /// <summary>普通用户最关注的一句结论（来自首选 Finding 的 UserSummaryKey）。</summary>
+    [ObservableProperty]
+    private string primaryUserSummary = string.Empty;
 
-    partial void OnPrimaryFindingChanged(Finding? value)
-    {
-        this.OnPropertyChanged(nameof(this.HasGuidance));
-    }
+    /// <summary>首选 Finding 的标题（技术性标题）。</summary>
+    [ObservableProperty]
+    private string primaryTitle = string.Empty;
+
+    /// <summary>首选 Finding 的简短说明。</summary>
+    [ObservableProperty]
+    private string primaryExplanation = string.Empty;
+
+    /// <summary>首选 Finding 的处理方法文案。</summary>
+    [ObservableProperty]
+    private string primaryGuidance = string.Empty;
+
+    /// <summary>是否拥有可展示的处理方法（GuidanceKey 非空）。</summary>
+    [ObservableProperty]
+    private bool hasGuidance;
+
+    /// <summary>是否可以对首选 Finding 执行安全修复（动作受支持且非空）。</summary>
+    [ObservableProperty]
+    private bool canRepairPrimaryFinding;
+
+    /// <summary>处理方法面板是否展开。</summary>
+    [ObservableProperty]
+    private bool isGuidanceVisible;
 
     public ObservableCollection<Finding> allFindings { get; } = [];
 
@@ -176,13 +200,45 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             this.PrimaryFinding = findings.FirstOrDefault();
+            this.UpdatePrimaryFindingDisplay();
             this.CurrentPage = AppPage.Result;
         }
         catch (OperationCanceledException)
         {
             this.ResultMessage = Strings.Checkup_Cancelled;
+            this.UpdatePrimaryFindingDisplay();
             this.CurrentPage = AppPage.Result;
         }
+    }
+
+    /// <summary>
+    /// 根据首选 Finding 同步面向用户的展示属性。
+    /// 没有结论时构造一个 inconclusive 兜底，保证结果页始终有文案。
+    /// </summary>
+    private void UpdatePrimaryFindingDisplay()
+    {
+        var primary = this.PrimaryFinding;
+        if (primary is null)
+        {
+            // 无结论：使用 inconclusive 兜底文案
+            this.PrimaryUserSummary = Strings.GetString("finding.inconclusive.summary");
+            this.PrimaryTitle = Strings.GetString("finding.inconclusive.title");
+            this.PrimaryExplanation = Strings.GetString("finding.inconclusive.explanation");
+            this.PrimaryGuidance = Strings.GetString("finding.inconclusive.guidance");
+            this.HasGuidance = !string.IsNullOrEmpty(this.PrimaryGuidance);
+            this.CanRepairPrimaryFinding = false;
+            this.IsGuidanceVisible = false;
+            return;
+        }
+
+        this.PrimaryUserSummary = Strings.GetString(primary.UserSummaryKey);
+        this.PrimaryTitle = Strings.GetString(primary.TitleKey);
+        this.PrimaryExplanation = Strings.GetString(primary.ExplanationKey);
+        this.PrimaryGuidance = primary.GuidanceKey is null ? string.Empty : Strings.GetString(primary.GuidanceKey);
+        this.HasGuidance = !string.IsNullOrEmpty(primary.GuidanceKey);
+        this.CanRepairPrimaryFinding = primary.RecommendedActionId is not null
+            && BuiltinRuleRegistry.SupportedRepairActions.Contains(primary.RecommendedActionId);
+        this.IsGuidanceVisible = false;
     }
 
     /// <summary>取消体检。</summary>
@@ -200,13 +256,28 @@ public sealed partial class MainViewModel : ObservableObject
         this.PrimaryFinding = null;
         this.allFindings.Clear();
         this.SelectedRepairAction = null;
+        this.PrimaryUserSummary = string.Empty;
+        this.PrimaryTitle = string.Empty;
+        this.PrimaryExplanation = string.Empty;
+        this.PrimaryGuidance = string.Empty;
+        this.HasGuidance = false;
+        this.CanRepairPrimaryFinding = false;
+        this.IsGuidanceVisible = false;
+        this.IsTechnicalDetailsVisible = false;
     }
 
-    /// <summary>查看引导：展开技术详情，不返回首页。</summary>
+    /// <summary>查看处理方法：展开引导面板，不返回首页。</summary>
     [RelayCommand]
     private void ViewGuidance()
     {
-        this.IsTechnicalDetailsVisible = true;
+        this.IsGuidanceVisible = true;
+    }
+
+    /// <summary>切换处理方法面板的可见性。</summary>
+    [RelayCommand]
+    private void ToggleGuidance()
+    {
+        this.IsGuidanceVisible = !this.IsGuidanceVisible;
     }
 
     /// <summary>安全修复：进入修复确认页。</summary>

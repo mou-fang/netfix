@@ -50,6 +50,12 @@ public sealed class RuleRegistry
             }
         }
 
+        // InconclusiveRule 是兜底规则：仅在没有任何具体 Finding 命中时保留。
+        if (findings.Any(f => f.Id != "finding.inconclusive"))
+        {
+            findings.RemoveAll(f => f.Id == "finding.inconclusive");
+        }
+
         return findings
             .OrderByDescending(f => f.Confidence)
             .ThenByDescending(f => f.RecommendedActionId is not null)

@@ -74,17 +74,71 @@
   <data name="Confidence_Medium" xml:space="preserve"><value>找到可能原因</value></data>
   <data name="Confidence_Insufficient" xml:space="preserve"><value>证据不足，需要深度体检</value></data>
 
-  <!-- Finding 文案 -->
+  <!-- Finding 文案（每条 Finding 含 title/explanation/summary/guidance） -->
+
+  <!-- network_healthy -->
   <data name="finding.network_healthy.title" xml:space="preserve"><value>本机网络正常</value></data>
-  <data name="finding.network_healthy.explanation" xml:space="preserve"><value>你的电脑网络连接正常。如果仍有问题，可能在目标服务、路由器或运营商。</value></data>
+  <data name="finding.network_healthy.explanation" xml:space="preserve"><value>你的电脑网络连接正常，所有核心检查均已通过。</value></data>
+  <data name="finding.network_healthy.summary" xml:space="preserve"><value>你的网络看起来没问题。</value></data>
+  <data name="finding.network_healthy.guidance" xml:space="preserve"><value>如果仍有问题，可能来自目标网站或路由器。</value></data>
+
+  <!-- dead_local_proxy -->
   <data name="finding.dead_local_proxy.title" xml:space="preserve"><value>系统仍在使用已关闭的本地代理</value></data>
   <data name="finding.dead_local_proxy.explanation" xml:space="preserve"><value>你的网络请求被发送到一个本地端口，但没有程序在该端口工作。恢复为直连不会删除代理软件或订阅。</value></data>
+  <data name="finding.dead_local_proxy.summary" xml:space="preserve"><value>你的代理软件已经关闭，但 Windows 还在把网络交给它。</value></data>
+  <data name="finding.dead_local_proxy.guidance" xml:space="preserve"><value>点击“安全修复”可以关闭系统代理设置。这不会删除你的代理软件，下次打开代理软件仍可重新启用。</value></data>
+
+  <!-- winhttp_proxy_config -->
+  <data name="finding.winhttp_proxy_config.title" xml:space="preserve"><value>检测到系统服务代理配置</value></data>
+  <data name="finding.winhttp_proxy_config.explanation" xml:space="preserve"><value>Windows 系统服务使用的代理配置（WinHTTP）存在自定义设置。</value></data>
+  <data name="finding.winhttp_proxy_config.summary" xml:space="preserve"><value>你的电脑有系统服务代理配置，通常不需要处理。</value></data>
+  <data name="finding.winhttp_proxy_config.guidance" xml:space="preserve"><value>如果系统更新或商店无法联网，请确认此配置是否正确。企业电脑请联系管理员。</value></data>
+
+  <!-- pac_unreachable -->
+  <data name="finding.pac_unreachable.title" xml:space="preserve"><value>自动代理脚本无法访问</value></data>
+  <data name="finding.pac_unreachable.explanation" xml:space="preserve"><value>系统配置了自动代理脚本（PAC），但该脚本地址无法访问。</value></data>
+  <data name="finding.pac_unreachable.summary" xml:space="preserve"><value>你的代理脚本打不开了，可能代理软件没有运行。</value></data>
+  <data name="finding.pac_unreachable.guidance" xml:space="preserve"><value>确认代理或 VPN 软件是否正在运行。企业电脑请联系管理员，不要自行修改。</value></data>
+
+  <!-- apipa_dhcp -->
+  <data name="finding.apipa_dhcp.title" xml:space="preserve"><value>电脑未从路由器获取网络地址</value></data>
+  <data name="finding.apipa_dhcp.explanation" xml:space="preserve"><value>网卡获得了自动私有地址（169.254.x.x），说明 DHCP 未正常分配地址。</value></data>
+  <data name="finding.apipa_dhcp.summary" xml:space="preserve"><value>你的电脑没有从路由器拿到正确的网络地址。</value></data>
+  <data name="finding.apipa_dhcp.guidance" xml:space="preserve"><value>重新连接 Wi-Fi，检查路由器是否正常，尝试重启路由器。如果使用有线，检查网线连接。</value></data>
+
+  <!-- dns_failure -->
   <data name="finding.dns_failure.title" xml:space="preserve"><value>DNS 名称解析异常</value></data>
   <data name="finding.dns_failure.explanation" xml:space="preserve"><value>电脑无法将网站名称转换为地址。这可能是因为 DNS 服务器不可达或缓存异常。</value></data>
+  <data name="finding.dns_failure.summary" xml:space="preserve"><value>你的电脑无法把网站名字翻译成地址。</value></data>
+  <data name="finding.dns_failure.guidance" xml:space="preserve"><value>点击“安全修复”可以尝试清理 DNS 缓存。如果问题持续，可能需要检查路由器或联系运营商。</value></data>
+
+  <!-- ncsi_mismatch -->
   <data name="finding.ncsi_mismatch.title" xml:space="preserve"><value>Windows 网络状态指示异常</value></data>
   <data name="finding.ncsi_mismatch.explanation" xml:space="preserve"><value>Windows 显示无网络，但实际网络连接正常。无需重置网络。</value></data>
-  <data name="finding.single_site_issue.title" xml:space="preserve"><value>问题只在目标网站，不在你的电脑</value></data>
-  <data name="finding.single_site_issue.explanation" xml:space="preserve"><value>本机网络正常，只有指定目标失败。这更可能是目标服务自身问题。</value></data>
+  <data name="finding.ncsi_mismatch.summary" xml:space="preserve"><value>Windows 说没网，但其实你的网络是正常的。</value></data>
+  <data name="finding.ncsi_mismatch.guidance" xml:space="preserve"><value>这只是 Windows 的状态显示问题，不影响实际使用。可以忽略。</value></data>
+
+  <!-- captive_portal -->
+  <data name="finding.captive_portal.title" xml:space="preserve"><value>网络需要登录认证</value></data>
+  <data name="finding.captive_portal.explanation" xml:space="preserve"><value>当前网络可能需要网页认证才能上网。</value></data>
+  <data name="finding.captive_portal.summary" xml:space="preserve"><value>这个网络需要先登录才能上网。</value></data>
+  <data name="finding.captive_portal.summary_possible" xml:space="preserve"><value>这个网络可能需要登录认证，请尝试打开浏览器。</value></data>
+  <data name="finding.captive_portal.guidance" xml:space="preserve"><value>打开浏览器访问任意网页，完成 Wi-Fi 登录认证。</value></data>
+
+  <!-- target_unreachable -->
+  <data name="finding.target_unreachable.title" xml:space="preserve"><value>问题只在目标网站，不在你的电脑</value></data>
+  <data name="finding.target_unreachable.explanation" xml:space="preserve"><value>本机网络正常，只有指定目标失败。这更可能是目标服务自身问题。</value></data>
+  <data name="finding.target_unreachable.summary" xml:space="preserve"><value>你的电脑网络可能正常，问题可能来自目标网站。</value></data>
+  <data name="finding.target_unreachable.guidance" xml:space="preserve"><value>稍后重试、切换网络或检查目标服务的官方状态页。</value></data>
+
+  <!-- inconclusive -->
+  <data name="finding.inconclusive.title" xml:space="preserve"><value>暂时无法确定问题</value></data>
+  <data name="finding.inconclusive.explanation" xml:space="preserve"><value>体检发现了一些异常，但无法确定具体原因。没有发现适合自动修改的设置。</value></data>
+  <data name="finding.inconclusive.summary" xml:space="preserve"><value>暂时无法确定问题，但没有发现适合自动修改的设置。</value></data>
+  <data name="finding.inconclusive.guidance" xml:space="preserve"><value>可以尝试重新检查，或查看技术详情了解更多信息。</value></data>
+
+  <!-- 处理方法面板标题 -->
+  <data name="GuidancePanel" xml:space="preserve"><value>处理方法</value></data>
 
   <!-- 修复动作文案 -->
   <data name="repair.disable_dead_proxy.title" xml:space="preserve"><value>关闭失效的本地代理</value></data>

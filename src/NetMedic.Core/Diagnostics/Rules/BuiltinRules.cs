@@ -58,6 +58,7 @@ public sealed class DeadLocalProxyRule : IDiagnosisRule
             titleKey: "finding.dead_local_proxy.title",
             explanationKey: "finding.dead_local_proxy.explanation",
             userSummaryKey: "finding.dead_local_proxy.summary",
+            guidanceKey: "finding.dead_local_proxy.guidance",
             recommendedActionId: actionId,
             evidenceIds: ["PRX-01", "PRX-04", "WEB-02"],
             counterEvidenceIds: counterEvidence,
@@ -99,6 +100,7 @@ public sealed class WinHttpProxyConfigRule : IDiagnosisRule
             titleKey: "finding.winhttp_proxy_config.title",
             explanationKey: "finding.winhttp_proxy_config.explanation",
             userSummaryKey: "finding.winhttp_proxy_config.summary",
+            guidanceKey: "finding.winhttp_proxy_config.guidance",
             recommendedActionId: null,
             evidenceIds: ["PRX-02"],
             counterEvidenceIds: []);
@@ -131,14 +133,14 @@ public sealed class PacUnreachableRule : IDiagnosisRule
         var counterEvidence = ProtectedContextEvaluator.GetProtectedContextEvidenceIds(snapshot);
 
         var confidence = protectedCtx ? Confidence.Medium : Confidence.High;
-        var actionId = protectedCtx ? null : "FIX-PRX-02";
 
         return Finding.Create(
             id: this.Id, confidence: confidence, severity: FindingSeverity.Medium,
             titleKey: "finding.pac_unreachable.title",
             explanationKey: "finding.pac_unreachable.explanation",
             userSummaryKey: "finding.pac_unreachable.summary",
-            recommendedActionId: actionId,
+            guidanceKey: "finding.pac_unreachable.guidance",
+            recommendedActionId: null,
             evidenceIds: ["PRX-03"],
             counterEvidenceIds: counterEvidence,
             protectedContextDowngrade: protectedCtx);
@@ -187,14 +189,14 @@ public sealed class ApipaDhcpRule : IDiagnosisRule
         var counterEvidence = ProtectedContextEvaluator.GetProtectedContextEvidenceIds(snapshot);
 
         var confidence = protectedCtx ? Confidence.Medium : Confidence.High;
-        var actionId = protectedCtx ? null : "FIX-DHCP-01";
 
         return Finding.Create(
             id: this.Id, confidence: confidence, severity: FindingSeverity.High,
             titleKey: "finding.apipa_dhcp.title",
             explanationKey: "finding.apipa_dhcp.explanation",
             userSummaryKey: "finding.apipa_dhcp.summary",
-            recommendedActionId: actionId,
+            guidanceKey: "finding.apipa_dhcp.guidance",
+            recommendedActionId: null,
             evidenceIds: ["NET-02", "NET-01"],
             counterEvidenceIds: counterEvidence,
             protectedContextDowngrade: protectedCtx);
@@ -253,6 +255,7 @@ public sealed class DnsFailureRule : IDiagnosisRule
             titleKey: "finding.dns_failure.title",
             explanationKey: "finding.dns_failure.explanation",
             userSummaryKey: "finding.dns_failure.summary",
+            guidanceKey: "finding.dns_failure.guidance",
             recommendedActionId: actionId,
             evidenceIds: ["DNS-02", "NET-03"],
             counterEvidenceIds: counterEvidence,
@@ -304,6 +307,7 @@ public sealed class NcsiMismatchRule : IDiagnosisRule
             titleKey: "finding.ncsi_mismatch.title",
             explanationKey: "finding.ncsi_mismatch.explanation",
             userSummaryKey: "finding.ncsi_mismatch.summary",
+            guidanceKey: "finding.ncsi_mismatch.guidance",
             recommendedActionId: null,
             evidenceIds: ["WEB-01", "WEB-02"],
             counterEvidenceIds: []);
@@ -358,6 +362,7 @@ public sealed class CaptivePortalRule : IDiagnosisRule
             userSummaryKey: bothSignals
                 ? "finding.captive_portal.summary"
                 : "finding.captive_portal.summary_possible",
+            guidanceKey: "finding.captive_portal.guidance",
             recommendedActionId: null,
             evidenceIds: evidenceIds,
             counterEvidenceIds: []);
@@ -398,6 +403,7 @@ public sealed class TargetUnreachableRule : IDiagnosisRule
             titleKey: "finding.target_unreachable.title",
             explanationKey: "finding.target_unreachable.explanation",
             userSummaryKey: "finding.target_unreachable.summary",
+            guidanceKey: "finding.target_unreachable.guidance",
             recommendedActionId: null,
             evidenceIds: ["WEB-02", "TARGET-01"],
             counterEvidenceIds: []);
@@ -455,9 +461,9 @@ public sealed class NetworkHealthyRule : IDiagnosisRule
             return null;
         }
 
-        // WEB-01 Warning（认证门户信号）时不判定为健康
+        // WEB-01 非 Passed（Warning/Skipped）时不判定为健康
         var web01 = snapshot.Get("WEB-01");
-        if (web01 is { Status: ProbeStatus.Warning })
+        if (web01 is not null && web01.Status != ProbeStatus.Passed)
         {
             return null;
         }
@@ -467,9 +473,50 @@ public sealed class NetworkHealthyRule : IDiagnosisRule
             titleKey: "finding.network_healthy.title",
             explanationKey: "finding.network_healthy.explanation",
             userSummaryKey: "finding.network_healthy.summary",
+            guidanceKey: "finding.network_healthy.guidance",
             recommendedActionId: null,
             evidenceIds: coreIds,
             counterEvidenceIds: []);
+    }
+}
+
+/// <summary>
+/// 规则：证据不足兜底结论。
+/// 当存在 Failed/Error 探针但无具体规则命中时触发。
+/// 必须作为注册表中最后一条规则——具体规则优先，此规则为兜底。
+/// </summary>
+public sealed class InconclusiveRule : IDiagnosisRule
+{
+    public string Id => "finding.inconclusive";
+
+    public Finding? Evaluate(DiagnosticSnapshot snapshot)
+    {
+        // 仅当存在 Failed/Error 探针时考虑
+        bool hasAnyFailure = snapshot.Session.Results.Any(r =>
+            r.Status is ProbeStatus.Failed or ProbeStatus.Error);
+
+        if (!hasAnyFailure)
+        {
+            return null;
+        }
+
+        // 兜底规则：具体规则已在之前评估并命中。
+        // 此规则作为最后一条注册，仅在没有任何具体 Finding 覆盖该失败时生效。
+        var failedEvidence = snapshot.Session.Results
+            .Where(r => r.Status is ProbeStatus.Failed or ProbeStatus.Error)
+            .Select(r => r.Id)
+            .ToList();
+
+        return Finding.Create(
+            id: this.Id,
+            confidence: Confidence.Insufficient,
+            severity: FindingSeverity.Medium,
+            titleKey: "finding.inconclusive.title",
+            explanationKey: "finding.inconclusive.explanation",
+            userSummaryKey: "finding.inconclusive.summary",
+            guidanceKey: "finding.inconclusive.guidance",
+            recommendedActionId: null,
+            evidenceIds: failedEvidence);
     }
 }
 
@@ -501,6 +548,8 @@ public static class BuiltinRuleRegistry
         registry.Add(new CaptivePortalRule());
         registry.Add(new TargetUnreachableRule());
         registry.Add(new NetworkHealthyRule());
+        // 兜底规则必须最后注册：仅在具体规则均未命中时生效
+        registry.Add(new InconclusiveRule());
         return registry;
     }
 }
