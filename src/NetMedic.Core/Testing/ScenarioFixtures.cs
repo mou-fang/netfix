@@ -1,0 +1,119 @@
+using NetMedic.Core.Diagnostics;
+using NetMedic.Core.Testing.Rules;
+
+namespace NetMedic.Core.Testing;
+
+/// <summary>
+/// 场景 fixture 工厂。对应任务书 §11.2 必测场景 L01/L02/L09/L14/L15。
+/// 每个场景返回一个完整的 FakeNetworkEnvironment + 预期 Finding。
+/// 阶段 1 只覆盖这五个场景，保证结果稳定可重复。
+/// </summary>
+public static class ScenarioFixtures
+{
+    /// <summary>
+    /// L01: 健康网络，无代理/VPN。预期：显示正常，不修改设置。
+    /// </summary>
+    public static ScenarioFixture L01_Healthy() => new(
+        Name: "L01_Healthy",
+        Environment: FakeNetworkEnvironment.Healthy("L01_Healthy"),
+        ExpectedFindingId: "finding.network_healthy",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: null);
+
+    /// <summary>
+    /// L02: 本地代理 127.0.0.1:7890 无监听，直连成功。预期：建议关闭失效代理。
+    /// </summary>
+    public static ScenarioFixture L02_DeadLocalProxy() => new(
+        Name: "L02_DeadLocalProxy",
+        Environment: FakeNetworkEnvironment.Healthy("L02_DeadLocalProxy") with
+        {
+            WininetProxyEnabled = true,
+            WininetProxyAddress = "127.0.0.1:7890",
+            WininetProxyIsLoopback = true,
+            WininetProxyPortListening = false,
+            // 系统代理路径会失败，但直连成功
+            SystemProxyHttpsOk = false,
+        },
+        ExpectedFindingId: "finding.dead_local_proxy",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: "FIX-PRX-01");
+
+    /// <summary>
+    /// L09: DNS 服务器不可达。预期：归类 DNS 故障。
+    /// 网关/路由正常，直连 TCP 正常，但系统 DNS 解析失败。
+    /// </summary>
+    public static ScenarioFixture L09_DnsFailure() => new(
+        Name: "L09_DnsFailure",
+        Environment: FakeNetworkEnvironment.Healthy("L09_DnsFailure") with
+        {
+            SystemDnsResolves = false,
+            ConfiguredDnsReachable = false,
+            // 直连 HTTPS 也会失败（因为无法解析域名），
+            // 但网关/路由正常，足以区分 DNS 故障与完全断网
+            DirectHttpsOk = false,
+            TargetSiteResolves = false,
+            TargetSiteConnects = false,
+        },
+        ExpectedFindingId: "finding.dns_failure",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: "FIX-DNS-01");
+
+    /// <summary>
+    /// L14: NCSI 报无网但 HTTPS 正常。预期：说明图标异常，不修复网络。
+    /// </summary>
+    public static ScenarioFixture L14_NcsiMismatch() => new(
+        Name: "L14_NcsiMismatch",
+        Environment: FakeNetworkEnvironment.Healthy("L14_NcsiMismatch") with
+        {
+            NcsiConnected = false,
+            // 直连和系统代理都正常
+            DirectHttpsOk = true,
+            SystemProxyHttpsOk = true,
+        },
+        ExpectedFindingId: "finding.ncsi_mismatch",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: null);
+
+    /// <summary>
+    /// L15: 只有一个网站失败。预期：不执行全局重置。
+    /// 健康目标正常，只有用户指定目标失败。
+    /// </summary>
+    public static ScenarioFixture L15_SingleSiteIssue() => new(
+        Name: "L15_SingleSiteIssue",
+        Environment: FakeNetworkEnvironment.Healthy("L15_SingleSiteIssue") with
+        {
+            TargetSiteResolves = false,
+            TargetSiteConnects = false,
+        },
+        ExpectedFindingId: "finding.single_site_issue",
+        ExpectedConfidence: Confidence.High,
+        ExpectedRecommendedActionId: null);
+
+    /// <summary>所有场景，便于测试遍历。</summary>
+    public static IReadOnlyList<ScenarioFixture> All() =>
+    [
+        L01_Healthy(),
+        L02_DeadLocalProxy(),
+        L09_DnsFailure(),
+        L14_NcsiMismatch(),
+        L15_SingleSiteIssue(),
+    ];
+
+    /// <summary>构建包含所有内置规则的注册表。</summary>
+    public static RuleRegistry BuildRuleRegistry() => new RuleRegistry()
+        .Add(new DeadLocalProxyRule())
+        .Add(new DnsFailureRule())
+        .Add(new NcsiMismatchRule())
+        .Add(new SingleSiteIssueRule())
+        .Add(new NetworkHealthyRule());
+}
+
+/// <summary>
+/// 场景 fixture：环境 + 预期结果。
+/// </summary>
+public sealed record ScenarioFixture(
+    string Name,
+    FakeNetworkEnvironment Environment,
+    string ExpectedFindingId,
+    Confidence ExpectedConfidence,
+    string? ExpectedRecommendedActionId);

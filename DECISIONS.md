@@ -56,3 +56,27 @@
 - 决策：阶段 0 只做欢迎窗口（应用名/版本/就绪状态/占位按钮），不做症状选择器和 Mock 诊断流程。
 - 理由：避免与阶段 1 重叠；任务书说"空壳"。
 - 影响：点击"开始体检"只显示占位提示。
+
+## ADR-008：阶段 1 使用 ListBox 单选代替 RadioButton 绑定
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：症状选择器用 ListBox + SelectedItem 双向绑定，而非 RadioButton + ConverterParameter。
+- 理由：WPF 的 ConverterParameter 不支持 Binding 表达式，RadioButton 方案需要复杂 MultiBinding。ListBox 更简洁可靠。
+- 影响：UI 行为一致，代码更少。
+
+## ADR-009：探针编排器用 SemaphoreSlim 控制并发 + 独立 CancellationTokenSource
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：ProbeOrchestrator 用 SemaphoreSlim 限制并发数，每个探针创建链接外部取消+总体超时的独立 CTS，再 CancelAfter 设置单探针超时。
+- 理由：三层取消机制（外部取消/总体预算/单探针超时）需要清晰分离；链接 CTS 可正确区分取消来源。
+- 影响：测试可精确验证三种取消场景，不依赖长时间 Sleep。
+
+## ADR-010：NetworkHealthyRule 在 TARGET-01 失败时不触发
+
+- 日期：2026-07-13
+- 状态：已采纳
+- 决策：当指定目标探针 TARGET-01 失败时，NetworkHealthyRule 不返回"本机正常"，让 SingleSiteIssueRule 优先命中。
+- 理由：单站失败意味着存在局部问题，不应判定为完全健康。
+- 影响：L15 场景正确归类为 single_site_issue 而非 network_healthy。

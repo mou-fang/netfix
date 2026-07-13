@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <!-- 通用 -->
+  <data name="AppTitle" xml:space="preserve"><value>网络急救箱</value></data>
+  <data name="Ready" xml:space="preserve"><value>已就绪</value></data>
+  <data name="Checking" xml:space="preserve"><value>正在检查</value></data>
+  <data name="Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="Back" xml:space="preserve"><value>返回</value></data>
+  <data name="SafeRepair" xml:space="preserve"><value>安全修复</value></data>
+  <data name="ViewGuidance" xml:space="preserve"><value>查看处理方法</value></data>
+  <data name="Confirm" xml:space="preserve"><value>确认执行</value></data>
+  <data name="Done" xml:space="preserve"><value>完成</value></data>
+  <data name="Retry" xml:space="preserve"><value>重新检查</value></data>
+  <data name="TechnicalDetails" xml:space="preserve"><value>技术详情</value></data>
+  <data name="ShowTechnicalDetails" xml:space="preserve"><value>展开技术详情</value></data>
+  <data name="HideTechnicalDetails" xml:space="preserve"><value>收起技术详情</value></data>
+
+  <!-- 首页 -->
+  <data name="Home_StartCheckup" xml:space="preserve"><value>开始网络体检</value></data>
+  <data name="Home_ConnectionSummary" xml:space="preserve"><value>当前网络状态摘要</value></data>
+  <data name="Home_SymptomPrompt" xml:space="preserve"><value>你现在遇到哪种情况？</value></data>
+  <data name="Home_Symptom_NothingWorks" xml:space="preserve"><value>什么都打不开</value></data>
+  <data name="Home_Symptom_SomeSitesDown" xml:space="preserve"><value>只有部分网站打不开</value></data>
+  <data name="Home_Symptom_SingleAppDown" xml:space="preserve"><value>只有一个应用/游戏打不开</value></data>
+  <data name="Home_Symptom_ProxyVpnOff" xml:space="preserve"><value>代理或 VPN 关闭后不能上网</value></data>
+  <data name="Home_Symptom_Unsure" xml:space="preserve"><value>我不确定</value></data>
+
+  <!-- 体检过程 -->
+  <data name="Checkup_Stage1" xml:space="preserve"><value>检查电脑连接</value></data>
+  <data name="Checkup_Stage2" xml:space="preserve"><value>检查网络地址和路由器</value></data>
+  <data name="Checkup_Stage3" xml:space="preserve"><value>检查网站名称解析</value></data>
+  <data name="Checkup_Stage4" xml:space="preserve"><value>检查代理、VPN 和互联网</value></data>
+  <data name="Checkup_Stage5" xml:space="preserve"><value>检查用户指定的目标</value></data>
+  <data name="Checkup_Progress" xml:space="preserve"><value>正在体检… {0}/{1}</value></data>
+  <data name="Checkup_Cancelled" xml:space="preserve"><value>体检已取消。已有结果仍可查看。</value></data>
+
+  <!-- 结论状态 -->
+  <data name="Confidence_High" xml:space="preserve"><value>已找到高可信原因</value></data>
+  <data name="Confidence_Medium" xml:space="preserve"><value>找到可能原因</value></data>
+  <data name="Confidence_Insufficient" xml:space="preserve"><value>证据不足，需要深度体检</value></data>
+
+  <!-- Finding 文案 -->
+  <data name="finding.network_healthy.title" xml:space="preserve"><value>本机网络正常</value></data>
+  <data name="finding.network_healthy.explanation" xml:space="preserve"><value>你的电脑网络连接正常。如果仍有问题，可能在目标服务、路由器或运营商。</value></data>
+  <data name="finding.dead_local_proxy.title" xml:space="preserve"><value>系统仍在使用已关闭的本地代理</value></data>
+  <data name="finding.dead_local_proxy.explanation" xml:space="preserve"><value>你的网络请求被发送到一个本地端口，但没有程序在该端口工作。恢复为直连不会删除代理软件或订阅。</value></data>
+  <data name="finding.dns_failure.title" xml:space="preserve"><value>DNS 名称解析异常</value></data>
+  <data name="finding.dns_failure.explanation" xml:space="preserve"><value>电脑无法将网站名称转换为地址。这可能是因为 DNS 服务器不可达或缓存异常。</value></data>
+  <data name="finding.ncsi_mismatch.title" xml:space="preserve"><value>Windows 网络状态指示异常</value></data>
+  <data name="finding.ncsi_mismatch.explanation" xml:space="preserve"><value>Windows 显示无网络，但实际网络连接正常。无需重置网络。</value></data>
+  <data name="finding.single_site_issue.title" xml:space="preserve"><value>问题只在目标网站，不在你的电脑</value></data>
+  <data name="finding.single_site_issue.explanation" xml:space="preserve"><value>本机网络正常，只有指定目标失败。这更可能是目标服务自身问题。</value></data>
+
+  <!-- 修复动作文案 -->
+  <data name="repair.disable_dead_proxy.title" xml:space="preserve"><value>关闭失效的本地代理</value></data>
+  <data name="repair.disable_dead_proxy.desc" xml:space="preserve"><value>关闭当前用户的手动代理设置，恢复为直连。不会删除代理软件。</value></data>
+  <data name="repair.disable_dead_proxy.confirm" xml:space="preserve"><value>将要关闭手动代理设置。不会断网，不需要管理员权限，可恢复原设置。</value></data>
+  <data name="repair.flush_dns.title" xml:space="preserve"><value>清理 DNS 缓存</value></data>
+  <data name="repair.flush_dns.desc" xml:space="preserve"><value>清理 DNS 客户端缓存中的过期或错误记录。</value></data>
+  <data name="repair.flush_dns.confirm" xml:space="preserve"><value>将要清理 DNS 缓存。不会断网，不需要管理员权限。缓存无法还原。</value></data>
+
+  <!-- 修复确认页 -->
+  <data name="RepairConfirm_Title" xml:space="preserve"><value>确认修复</value></data>
+  <data name="RepairConfirm_WhatWillChange" xml:space="preserve"><value>将要修改</value></data>
+  <data name="RepairConfirm_WhyNeeded" xml:space="preserve"><value>原因</value></data>
+  <data name="RepairConfirm_InterruptsNetwork" xml:space="preserve"><value>是否会暂时断网</value></data>
+  <data name="RepairConfirm_NeedsAdmin" xml:space="preserve"><value>是否需要管理员权限</value></data>
+  <data name="RepairConfirm_NeedsReboot" xml:space="preserve"><value>是否需要重启</value></data>
+  <data name="RepairConfirm_Reversible" xml:space="preserve"><value>能否自动撤销</value></data>
+  <data name="RepairConfirm_Yes" xml:space="preserve"><value>是</value></data>
+  <data name="RepairConfirm_No" xml:space="preserve"><value>否</value></data>
+
+  <!-- 修复结果（假流程） -->
+  <data name="RepairResult_FakeSuccess" xml:space="preserve"><value>修复已执行（模拟）。实际修复将在后续阶段实现。</value></data>
+
+  <!-- 阶段0占位 -->
+  <data name="Placeholder_NotImplemented" xml:space="preserve"><value>功能将在后续阶段实现。</value></data>
+</root>

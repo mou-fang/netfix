@@ -2,6 +2,27 @@
 
 本项目所有用户可见变化记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.2.0] - 2026-07-13
+
+### 阶段 1：模型、模拟器与完整 UI 假流程
+
+#### 新增
+- Core 领域模型：`ProbeResult`、`DiagnosticSnapshot`、`Finding`、`RepairActionDescriptor`、`ProbeError`、`DiagnosticSession`。
+- 探针基础设施：`IProbe` 接口、`ProbeContext`、`ProbeOrchestrator`（并发调度、独立超时、总体超时、取消、进度事件）。
+- 规则引擎：`IDiagnosisRule` 接口、`RuleRegistry`，5 条内置规则（失效代理/DNS 故障/NCSI 不一致/单站故障/网络正常）。
+- 模拟环境：`FakeNetworkEnvironment`、`FakeProbe`、`FakeProbeSet`，5 个场景 fixture（L01/L02/L09/L14/L15）。
+- UI 假流程：首页（症状选择器）-> 体检中（五段进度+取消）-> 结果页（结论+技术详情折叠）-> 修复确认页（影响说明）-> 修复结果页。
+- 资源文件 `Strings.resx`：所有用户文案集中管理，不散落硬编码。
+- 24 项测试：编排器超时/取消/总预算/异常/进度（6 项）+ 5 场景稳定性与预期验证（18 项）。
+
+#### 变更
+- `MainViewModel` 从阶段 0 占位扩展为完整四页状态机。
+- `MainWindow.xaml` 重写为多页面切换布局。
+
+#### 安全
+- 无真实 Windows API 调用、无真实网络请求、无真实修复。
+- 所有修复动作为假流程模拟。
+
 ## [0.1.0] - 2026-07-13
 
 ### 阶段 0：极简工程骨架

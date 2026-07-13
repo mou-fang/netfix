@@ -25,3 +25,12 @@
 
 - 无 Windows VM，无法执行任务书 §11.3 要求的故障注入测试（阶段 2+ 需要）。
 - 无 Windows CI Runner，当前仅本机手动验证。
+
+### 2026-07-13 阶段 1 验证
+
+| 项目 | 命令 | 结果 |
+|---|---|---|
+| 全量构建 | `dotnet build NetMedic.slnx -c Debug` | 通过，0 警告 0 错误 |
+| 单元测试 | `dotnet test NetMedic.slnx -c Debug` | 24/24 通过（编排器 6 + 场景 18） |
+| 格式检查 | `dotnet format NetMedic.slnx --verify-no-changes` | 通过，无格式问题 |
+| WPF 启动 | `dotnet run --project src/NetMedic.App` | 通过，四页假流程可演示 |
